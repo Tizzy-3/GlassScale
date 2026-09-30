@@ -1,0 +1,86 @@
+name: Build unsigned IPA
+
+# push 到 main 分支或手动点 Run workflow 都会触发编译
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 选择最新版 Xcode（需要 26+）
+        run: |
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "使用 $LATEST"
+          sudo xcode-select -s "$LATEST"
+          xcodebuild -version
+          VER=$(xcodebuild -version | head -1 | grep -oE '[0-9]+' | head -1)
+          if [ "$VER" -lt 26 ]; then
+            echo "❌ 需要 Xcode 26 或更高版本，当前只有 Xcode $VER"
+            exit 1
+          fi
+
+      - name: 生成占位 App 图标
+        # 说明：二进制图标无法经 API 上传，这里用纯 Python 生成两张 1024x1024 占位图
+        # （渐变配色取自 App 主题）。之后可随时把原版 AppIcon.png / AppIcon-Dark.png
+        # 覆盖到 GlassScale/Resources/Assets.xcassets/AppIcon.appiconset/ 目录。
+        run: |
+          python3 - <<'PYEOF'
+          import struct, zlib
+          def chunk(typ, data):
+              c = struct.pack('>I', len(data)) + typ + data
+              return c + struct.pack('>I', zlib.crc32(typ + data) & 0xffffffff)
+          def make_png(path, top, bottom):
+              w = h = 1024
+              ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
+              raw = bytearray()
+              for y in range(h):
+                  raw.append(0)
+                  t = y / (h - 1)
+                  r = int(top[0] + (bottom[0] - top[0]) * t)
+                  g = int(top[1] + (bottom[1] - top[1]) * t)
+                  b = int(top[2] + (bottom[2] - top[2]) * t)
+                  raw += bytes((r, g, b)) * w
+              comp = zlib.compress(bytes(raw), 6)
+              data = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', comp) + chunk(b'IEND', b'')
+              open(path, 'wb').write(data)
+              print('wrote', path, len(data), 'bytes')
+          base = 'GlassScale/Resources/Assets.xcassets/AppIcon.appiconset/'
+          make_png(base + 'AppIcon.png', (43, 217, 168), (74, 184, 250))
+          make_png(base + 'AppIcon-Dark.png', (16, 80, 62), (24, 52, 96))
+          PYEOF
+
+      - name: 编译（跳过签名）
+        run: |
+          xcodebuild \
+            -project "GlassScale.xcodeproj" \
+            -scheme "GlassScale" \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: 打包成未签名 ipa
+        run: |
+          APP=$(find "$RUNNER_TEMP/build/Build/Products/Release-iphoneos" -maxdepth 1 -name "*.app" | head -1)
+          echo "App 路径: $APP"
+          test -n "$APP"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          cd "$RUNNER_TEMP/ipa"
+          zip -r -y "GlassScale-unsigned.ipa" Payload
+          ls -lh "GlassScale-unsigned.ipa"
+
+      - name: 上传 ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: GlassScale-unsigned-ipa
+          path: ${{ runner.temp }}/ipa/GlassScale-unsigned.ipa
+          if-no-files-found: error
