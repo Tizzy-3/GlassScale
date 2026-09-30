@@ -118,9 +118,14 @@
 			files = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/tools/alt-icons/decode-alt-icons.sh",
+				"$(SRCROOT)/tools/alt-icons/AppIcon-Cat.jpg.b64",
+				"$(SRCROOT)/tools/alt-icons/AppIcon-Dumbbell.jpg.b64",
 			);
 			name = "Decode Alternate App Icons";
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Cat.jpg",
+				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Dumbbell.jpg",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -128,17 +133,21 @@
 		};
 		2A00000000000000000000C2 /* Register Alternate App Icons */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/tools/alt-icons/register-alt-icons.sh",
+				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Cat.jpg",
+				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Dumbbell.jpg",
 			);
 			name = "Register Alternate App Icons";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nPLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\nBUDDY=/usr/libexec/PlistBuddy\n$BUDDY -c \"Add :CFBundleAlternateIcons dict\" \"$PLIST\" 2>/dev/null || true\nfor spec in \"Cat:AppIcon-Cat\" \"Dumbbell:AppIcon-Dumbbell\"; do\n  name=\"${spec%%:*}\"\n  file=\"${spec##*:}\"\n  $BUDDY -c \"Add :CFBundleAlternateIcons:$name dict\" \"$PLIST\" 2>/dev/null || true\n  $BUDDY -c \"Delete :CFBundleAlternateIcons:$name:CFBundleIconFiles\" \"$PLIST\" 2>/dev/null || true\n  $BUDDY -c \"Add :CFBundleAlternateIcons:$name:CFBundleIconFiles array\" \"$PLIST\"\n  $BUDDY -c \"Add :CFBundleAlternateIcons:$name:CFBundleIconFiles:0 string $file\" \"$PLIST\"\ndone\n";
+			shellScript = "bash \"$SRCROOT/tools/alt-icons/register-alt-icons.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
