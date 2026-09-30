@@ -51,6 +51,15 @@ struct SettingsView: View {
                 Button("覆盖并载入", role: .destructive) { store.loadSampleData() }
                 Button("取消", role: .cancel) {}
             }
+            // App 图标切换失败（切换逻辑在 picker 收起后由 AppIconSwitcher 执行）
+            .alert("切换失败", isPresented: Binding(
+                get: { AppIconSwitcher.shared.errorMessage != nil },
+                set: { if !$0 { AppIconSwitcher.shared.errorMessage = nil } }
+            )) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(AppIconSwitcher.shared.errorMessage ?? "")
+            }
         }
     }
 
