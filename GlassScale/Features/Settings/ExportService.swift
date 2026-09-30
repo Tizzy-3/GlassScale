@@ -46,7 +46,7 @@ enum ExportService {
 
     static func csv(entries: [WeightEntry], unit: WeightUnit) -> URL? {
         let stamp = fileStamp()
-        return writeTemporary(makeCSV(entries: entries, unit: unit), name: "琉璃称-体重记录-\(stamp)", extension: "csv")
+        return writeTemporary(makeCSV(entries: entries, unit: unit), name: "享瘦-体重记录-\(stamp)", extension: "csv")
     }
 
     static func json(store: WeightStore) -> URL? {
@@ -61,7 +61,7 @@ enum ExportService {
         )
         guard let data = try? encoder.encode(payload),
               let text = String(data: data, encoding: .utf8) else { return nil }
-        return writeTemporary(text, name: "琉璃称-备份-\(fileStamp())", extension: "json")
+        return writeTemporary(text, name: "享瘦-备份-\(fileStamp())", extension: "json")
     }
 
     private static func fileStamp() -> String {

@@ -63,7 +63,7 @@ struct OnboardingView: View {
             }
             .frame(height: 220)
 
-            Text("琉璃称")
+            Text("享瘦")
                 .font(.system(size: 40, weight: .bold, design: .rounded))
             Text("液态玻璃质感的体重管理记录")
                 .font(.subheadline)

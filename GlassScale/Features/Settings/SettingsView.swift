@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var showGoalEditor = false
     @State private var showProfileEditor = false
     @State private var showExport = false
+    @State private var showImport = false
     @State private var showOnboarding = false
     @State private var showThemePicker = false
     @State private var isImporting = false
@@ -39,6 +40,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showGoalEditor) { GoalEditorView() }
             .sheet(isPresented: $showProfileEditor) { ProfileEditorView() }
             .sheet(isPresented: $showExport) { ExportSheet() }
+            .sheet(isPresented: $showImport) { ImportSheet() }
             .sheet(isPresented: $showOnboarding) { OnboardingView(playMode: true) }
             .sheet(isPresented: $showThemePicker) { ThemePickerView() }
             .confirmationDialog("确定清空全部记录？此操作不可撤销。", isPresented: $confirmClear, titleVisibility: .visible) {
@@ -287,6 +289,12 @@ struct SettingsView: View {
     private var dataCard: some View {
         card(title: "数据管理", symbol: "externaldrive") {
             navRow(symbol: "square.and.arrow.up", title: "导出数据", tint: Theme.violet, action: { showExport = true }) {
+                Text("CSV / JSON")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            rowDivider
+            navRow(symbol: "square.and.arrow.down", title: "导入数据", tint: Theme.mint, action: { showImport = true }) {
                 Text("CSV / JSON")
                     .font(.caption)
                     .foregroundStyle(.tertiary)

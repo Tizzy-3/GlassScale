@@ -116,6 +116,46 @@ final class WeightStore {
         persist()
     }
 
+    // MARK: - 导入
+
+    /// 批量导入记录，自动去重（同 id / 同健康样本 / 同一天同来源）。
+    /// 返回 (新增条数, 跳过条数)。
+    @discardableResult
+    func importEntries(_ newEntries: [WeightEntry]) -> (added: Int, skipped: Int) {
+        var added = 0
+        var skipped = 0
+        for entry in newEntries {
+            let dupe = entries.contains {
+                $0.id == entry.id
+                    || ($0.healthKitUUID != nil && $0.healthKitUUID == entry.healthKitUUID)
+                    || ($0.dayKey == entry.dayKey && $0.source == entry.source)
+            }
+            if dupe {
+                skipped += 1
+                continue
+            }
+            entries.append(entry)
+            added += 1
+        }
+        if added > 0 {
+            sortEntries()
+            persist()
+        }
+        return (added, skipped)
+    }
+
+    /// 从完整备份恢复：覆盖记录、档案、目标与设置。
+    func restore(from payload: Persistence.Payload) {
+        entries = payload.entries
+        sortEntries()
+        profile = payload.profile
+        goal = payload.goal
+        settings = payload.settings
+        Theme.current = settings.theme
+        milestone = nil
+        persist()
+    }
+
     private func sortEntries() {
         entries.sort { $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date }
     }
