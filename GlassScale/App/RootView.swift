@@ -76,8 +76,5 @@ struct RootView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
-            QuickLogBar()
-        }
     }
 }

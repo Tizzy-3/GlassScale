@@ -18,19 +18,20 @@ struct SettingsView: View {
             ZStack {
                 AuroraBackground()
 
-                List {
-                    profileSection
-                    goalSection
-                    unitSection
-                    healthSection
-                    dataSection
-                    aboutSection
+                ScrollView {
+                    VStack(spacing: 18) {
+                        profileHeader
+                        archiveCard
+                        healthCard
+                        preferenceCard
+                        dataCard
+                        aboutCard
+                    }
+                    .padding(.horizontal, Theme.pagePadding)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
                 }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                // 给底部快捷条 + 标签栏让出空间
-                .safeAreaPadding(.bottom, 84)
+                .scrollIndicators(.hidden)
             }
             .navigationTitle("我的")
             .sheet(isPresented: $showGoalEditor) { GoalEditorView() }
@@ -48,97 +49,140 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 身体档案
+    // MARK: - 顶部档案头
 
-    private var profileSection: some View {
-        Section("身体档案") {
-            row(symbol: "ruler", title: "身高 / 年龄 / 性别", action: { showProfileEditor = true }) {
-                Text("\(Fmt.height(store.profile.heightCm, store.settings.lengthUnit)) \(store.settings.lengthUnit.symbol)")
-                    .foregroundStyle(.secondary)
-            }
+    private var profileHeader: some View {
+        GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 20) {
+            VStack(spacing: 14) {
+                HStack(spacing: 16) {
+                    Image(systemName: "person.fill")
+                        .font(.title2)
+                        .foregroundStyle(Theme.aqua)
+                        .frame(width: 62, height: 62)
+                        .glassEffect(.regular, in: .circle)
 
-            row(symbol: "scalemass", title: "起始体重", action: { showProfileEditor = true }) {
-                Text(store.baselineKg.map { "\(Fmt.weight($0, unit)) \(unit.symbol)" } ?? "未设置")
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("当前体重")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(store.stats.currentKg.map { Fmt.weight($0, unit) } ?? "—")
+                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .contentTransition(.numericText())
+                            Text(unit.symbol)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
-    // MARK: - 目标
-
-    private var goalSection: some View {
-        Section("目标") {
-            row(symbol: "target", title: "目标体重", action: { showGoalEditor = true }) {
-                Text(store.goal.map { "\(Fmt.weight($0.targetWeightKg, unit)) \(unit.symbol)" } ?? "未设置")
-                    .foregroundStyle(.secondary)
-            }
-
-            row(symbol: "calendar", title: "目标日期", action: { showGoalEditor = true }) {
-                Text(store.goal?.targetDate.formatted(.dateTime.year().month().day()) ?? "—")
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    // MARK: - 单位
-
-    private var unitSection: some View {
-        Section("单位") {
-            Picker("体重", selection: Binding<WeightUnit>(
-                get: { store.settings.weightUnit },
-                set: { store.settings.weightUnit = $0; store.updateSettings(store.settings) }
-            )) {
-                ForEach(WeightUnit.allCases) { u in
-                    Text(u.title).tag(u)
+                    Spacer()
                 }
-            }
 
-            Picker("身高", selection: Binding<LengthUnit>(
-                get: { store.settings.lengthUnit },
-                set: { store.settings.lengthUnit = $0; store.updateSettings(store.settings) }
-            )) {
-                ForEach(LengthUnit.allCases) { u in
-                    Text(u.title).tag(u)
+                HStack(spacing: 0) {
+                    miniStat(value: "\(store.stats.streakDays)", label: "连续天数")
+                    Divider().frame(height: 30)
+                    miniStat(value: "\(store.entries.count)", label: "累计记录")
+                    Divider().frame(height: 30)
+                    miniStat(value: store.stats.bmi.map { Fmt.number($0, decimals: 1) } ?? "—", label: "BMI")
                 }
             }
         }
     }
 
-    // MARK: - 健康
+    private func miniStat(value: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.headline.weight(.bold))
+                .contentTransition(.numericText())
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
 
-    private var healthSection: some View {
-        Section {
-            HStack {
-                Label("状态", systemImage: "heart.text.square")
-                Spacer()
-                Text(healthStatusText)
+    // MARK: - 分组卡片
+
+    private func card<Content: View>(
+        title: String,
+        symbol: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionTitle(text: title, symbol: symbol)
+                .padding(.horizontal, 4)
+            GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 8) {
+                VStack(spacing: 0) {
+                    content()
+                }
+            }
+        }
+    }
+
+    private var rowDivider: some View {
+        Divider().padding(.leading, 56)
+    }
+
+    // MARK: - 档案与目标
+
+    private var archiveCard: some View {
+        card(title: "档案与目标", symbol: "person.crop.circle") {
+            navRow(symbol: "ruler", title: "身体档案", action: { showProfileEditor = true }) {
+                Text("\(Fmt.height(store.profile.heightCm, store.settings.lengthUnit)) \(store.settings.lengthUnit.symbol) · \(store.profile.sex.title)")
                     .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            rowDivider
+            navRow(symbol: "scalemass", title: "起始体重", action: { showProfileEditor = true }) {
+                Text(store.baselineKg.map { "\(Fmt.weight($0, unit)) \(unit.symbol)" } ?? "未设置")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            rowDivider
+            navRow(symbol: "target", title: "目标体重", tint: Theme.mint, action: { showGoalEditor = true }) {
+                Text(store.goal.map { "\(Fmt.weight($0.targetWeightKg, unit)) \(unit.symbol)" } ?? "未设置")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            rowDivider
+            navRow(symbol: "calendar", title: "目标日期", tint: Theme.mint, action: { showGoalEditor = true }) {
+                Text(store.goal?.targetDate.formatted(.dateTime.year().month().day()) ?? "—")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Apple 健康
+
+    private var healthCard: some View {
+        card(title: "Apple 健康", symbol: "heart.text.square") {
+            infoRow(symbol: "heart.text.square", title: "连接状态", tint: Theme.mint) {
+                Text(healthStatusText)
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(store.health.status.isConnected ? Theme.mint : .secondary)
             }
-
             if store.health.status == .notDetermined || store.health.status == .denied {
-                row(symbol: "link", title: "连接「健康」", tint: Theme.mint, action: {
+                rowDivider
+                navRow(symbol: "link", title: "连接「健康」", tint: Theme.mint, action: {
                     Task { await store.health.requestAuthorization() }
-                }) {
-                    EmptyView()
-                }
+                }) { EmptyView() }
             }
-
-            row(symbol: "square.and.arrow.down", title: isImporting ? "导入中…" : "从「健康」导入", tint: Theme.mint, action: {
+            rowDivider
+            navRow(symbol: "square.and.arrow.down", title: isImporting ? "导入中…" : "从「健康」导入", tint: Theme.mint, action: {
                 Task { await importFromHealth() }
-            }) {
-                EmptyView()
-            }
+            }) { EmptyView() }
             .disabled(isImporting)
-
-            Toggle("保存时同时写入「健康」", isOn: Binding<Bool>(
+            rowDivider
+            toggleRow(symbol: "arrow.triangle.2.circlepath", title: "保存时写入「健康」", tint: Theme.mint, isOn: Binding<Bool>(
                 get: { store.settings.syncWriteToHealth },
                 set: { store.settings.syncWriteToHealth = $0; store.updateSettings(store.settings) }
             ))
-        } header: {
-            Text("Apple 健康")
-        } footer: {
             Text("导入只读取体重数据并保存在本机；写入会把本应用的新记录同步给「健康」。两者都需要先点「连接」。")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
         }
     }
 
@@ -152,85 +196,154 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 数据
+    // MARK: - 偏好设置
 
-    private var dataSection: some View {
-        Section {
-            row(symbol: "square.and.arrow.up", title: "导出数据", tint: Theme.violet, action: { showExport = true }) {
-                EmptyView()
-            }
+    private var preferenceCard: some View {
+        card(title: "偏好设置", symbol: "gearshape") {
+            unitPickerRow(symbol: "scalemass", title: "体重单位", selection: Binding<WeightUnit>(
+                get: { store.settings.weightUnit },
+                set: { store.settings.weightUnit = $0; store.updateSettings(store.settings) }
+            ), options: WeightUnit.allCases, label: \.title)
+            rowDivider
+            unitPickerRow(symbol: "ruler", title: "身高单位", selection: Binding<LengthUnit>(
+                get: { store.settings.lengthUnit },
+                set: { store.settings.lengthUnit = $0; store.updateSettings(store.settings) }
+            ), options: LengthUnit.allCases, label: \.title)
+        }
+    }
 
-            row(symbol: "wand.and.sparkles", title: "载入示例数据", tint: Theme.violet, action: { confirmSample = true }) {
-                EmptyView()
+    private func unitPickerRow<U: Hashable>(
+        symbol: String,
+        title: String,
+        selection: Binding<U>,
+        options: [U],
+        label: KeyPath<U, String>
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Theme.aqua)
+                .frame(width: 32, height: 32)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Text(title)
+                .font(.subheadline)
+            Spacer(minLength: 8)
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.self) { o in
+                    Text(o[keyPath: label]).tag(o)
+                }
             }
+            .pickerStyle(.menu)
+            .tint(Theme.aqua)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+    }
 
-            row(symbol: "trash", title: "清空全部记录", tint: Theme.coral, action: { confirmClear = true }) {
-                EmptyView()
+    // MARK: - 数据管理
+
+    private var dataCard: some View {
+        card(title: "数据管理", symbol: "externaldrive") {
+            navRow(symbol: "square.and.arrow.up", title: "导出数据", tint: Theme.violet, action: { showExport = true }) {
+                Text("CSV / JSON")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
-        } header: {
-            Text("数据")
-        } footer: {
-            Text("共 \(store.entries.count) 条记录，全部保存在本机 Application Support 目录。")
+            rowDivider
+            navRow(symbol: "wand.and.sparkles", title: "载入示例数据", tint: Theme.violet, action: { confirmSample = true }) { EmptyView() }
+            rowDivider
+            navRow(symbol: "trash", title: "清空全部记录", destructive: true, action: { confirmClear = true }) { EmptyView() }
+            Text("共 \(store.entries.count) 条记录，全部保存在本机，不上传云端。")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
         }
     }
 
     // MARK: - 关于
 
-    private var aboutSection: some View {
-        Section("关于") {
-            HStack {
-                Label("连续记录", systemImage: "flame")
-                Spacer()
-                Text("\(store.stats.streakDays) 天")
-                    .foregroundStyle(.secondary)
-            }
-            HStack {
-                Label("最早记录", systemImage: "calendar.badge.clock")
-                Spacer()
-                Text(store.entries.first?.date.formatted(.dateTime.year().month().day()) ?? "—")
-                    .foregroundStyle(.secondary)
-            }
-            row(symbol: "sparkles", title: "重新查看引导页", tint: Theme.aqua, action: { showOnboarding = true }) {
-                EmptyView()
-            }
-            HStack {
-                Label("版本", systemImage: "info.circle")
-                Spacer()
+    private var aboutCard: some View {
+        card(title: "关于", symbol: "info.circle") {
+            navRow(symbol: "sparkles", title: "重新查看引导页", action: { showOnboarding = true }) { EmptyView() }
+            rowDivider
+            infoRow(symbol: "info.circle", title: "版本") {
                 Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
         }
     }
 
-    // MARK: - 组件
+    // MARK: - 行组件
 
-    private func row<Trailing: View>(
+    private func navRow<Trailing: View>(
         symbol: String,
         title: String,
         tint: Color = Theme.aqua,
-        action: @escaping () -> Void = {},
+        destructive: Bool = false,
+        action: @escaping () -> Void,
         @ViewBuilder trailing: () -> Trailing
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: symbol)
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 30, height: 30)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .foregroundStyle(destructive ? Theme.coral : tint)
+                    .frame(width: 32, height: 32)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Text(title)
                     .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(destructive ? Theme.coral : .primary)
                 Spacer(minLength: 8)
                 trailing()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 14)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous))
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+    }
+
+    private func infoRow<Trailing: View>(
+        symbol: String,
+        title: String,
+        tint: Color = Theme.aqua,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 32, height: 32)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Text(title)
+                .font(.subheadline)
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+    }
+
+    private func toggleRow(symbol: String, title: String, tint: Color, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 32, height: 32)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Text(title)
+                .font(.subheadline)
+            Spacer(minLength: 8)
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
     }
 
     // MARK: - 导入
