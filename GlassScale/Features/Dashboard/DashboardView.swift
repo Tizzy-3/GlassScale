@@ -12,38 +12,42 @@ struct DashboardView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 18) {
-                    header
+            ZStack {
+                AuroraBackground()
 
-                    if store.isEmpty {
-                        EmptyStateView(
-                            symbol: "scalemass",
-                            title: "还没有记录",
-                            message: "点右下角的按钮，或直接用下方快捷条记下第一笔体重。",
-                            actionTitle: "记第一笔",
-                            action: onAdd
-                        )
-                        .padding(.top, 40)
-                    } else {
-                        HeroCard(
-                            stats: stats,
-                            goal: store.goal,
-                            baselineKg: store.baselineKg,
-                            unit: unit,
-                            projectedDate: stats.projectedGoalDate(goal: store.goal, baselineKg: store.baselineKg)
-                        )
+                ScrollView {
+                    VStack(spacing: 18) {
+                        header
 
-                        statGrid
-                        trendCard
-                        recentCard
+                        if store.isEmpty {
+                            EmptyStateView(
+                                symbol: "scalemass",
+                                title: "还没有记录",
+                                message: "点右下角的按钮，或直接用下方快捷条记下第一笔体重。",
+                                actionTitle: "记第一笔",
+                                action: onAdd
+                            )
+                            .padding(.top, 40)
+                        } else {
+                            HeroCard(
+                                stats: stats,
+                                goal: store.goal,
+                                baselineKg: store.baselineKg,
+                                unit: unit,
+                                projectedDate: stats.projectedGoalDate(goal: store.goal, baselineKg: store.baselineKg)
+                            )
+
+                            statGrid
+                            trendCard
+                            recentCard
+                        }
                     }
+                    .padding(.horizontal, Theme.pagePadding)
+                    .padding(.top, 8)
+                    .padding(.bottom, 140)
                 }
-                .padding(.horizontal, Theme.pagePadding)
-                .padding(.top, 8)
-                .padding(.bottom, 140)
+                .scrollIndicators(.hidden)
             }
-            .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)
             .overlay(alignment: .bottomTrailing) {
                 fabCluster
