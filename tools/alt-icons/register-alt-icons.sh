@@ -22,7 +22,8 @@ if [ ! -f "$PLIST" ]; then
 fi
 
 for name in AppIcon-Cat AppIcon-Dumbbell; do
-  cp "$SRC_DIR/$name.jpg" "$DST_DIR/$name.jpg"
+  # SpringBoard 只认 PNG 做图标文件（CFBundleIconFiles 填基名，系统拼 .png 查找）
+  cp "$SRC_DIR/$name.png" "$DST_DIR/$name.png"
 done
 
 # 清掉之前版本误写在顶层的键，避免混淆

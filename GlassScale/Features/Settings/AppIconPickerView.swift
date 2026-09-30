@@ -78,10 +78,10 @@ struct AppIconPickerView: View {
 
     @ViewBuilder
     private func iconPreview(_ choice: AppIconChoice) -> some View {
-        // 备选图标是构建脚本拷进包根目录的散装 JPG（不在 asset catalog 里），
+        // 备选图标是构建脚本拷进包根目录的散装 PNG（不在 asset catalog 里），
         // 用明确路径加载最可靠；Image("name") 对这类文件的查找不可靠。
         if let name = choice.previewResourceName,
-           let path = Bundle.main.path(forResource: name, ofType: "jpg"),
+           let path = Bundle.main.path(forResource: name, ofType: "png"),
            let uiImage = UIImage(contentsOfFile: path) {
             Image(uiImage: uiImage)
                 .resizable()

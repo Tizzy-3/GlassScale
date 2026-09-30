@@ -124,8 +124,8 @@
 			);
 			name = "Decode Alternate App Icons";
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Cat.jpg",
-				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Dumbbell.jpg",
+				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Cat.png",
+				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Dumbbell.png",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -139,8 +139,8 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/tools/alt-icons/register-alt-icons.sh",
-				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Cat.jpg",
-				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Dumbbell.jpg",
+				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Cat.png",
+				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Dumbbell.png",
 				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
 			);
 			name = "Register Alternate App Icons";
