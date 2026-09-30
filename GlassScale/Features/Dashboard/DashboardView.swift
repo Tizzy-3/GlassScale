@@ -203,17 +203,6 @@ struct DashboardView: View {
         GlassEffectContainer(spacing: 16) {
             VStack(spacing: 12) {
                 if fabOpen {
-                    fabAction("arrow.trophy", "达成记录", Theme.mint) {
-                        fabOpen = false
-                    }
-                    .glassEffectID("celebrate", in: fabNamespace)
-
-                    fabAction("wand.and.sparkles", "示例数据", Theme.violet) {
-                        store.loadSampleData()
-                        fabOpen = false
-                    }
-                    .glassEffectID("sample", in: fabNamespace)
-
                     fabAction("square.and.pencil", "手动记录", Theme.aqua) {
                         fabOpen = false
                         onAdd()

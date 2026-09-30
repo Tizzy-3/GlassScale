@@ -67,7 +67,7 @@ struct TrendsView: View {
                             picker
                             mainChart
                             summaryTiles
-                            deltaCard
+                            weeklyAverageCard
                         }
                     }
                     .padding(.horizontal, Theme.pagePadding)
@@ -171,14 +171,54 @@ struct TrendsView: View {
         return (values.min() ?? 0, values.max() ?? 0)
     }
 
-    private var deltaCard: some View {
+    /// 近 7 天均重 vs 前 7 天均重（滚动窗口，不足 3 条记录时返回 nil）
+    private var weeklyComparison: (recentAvg: Double, recentCount: Int, prevAvg: Double, prevCount: Int, delta: Double)? {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+
+        func windowAvg(daysAgo range: Range<Int>) -> (Double, Int)? {
+            let days = Set(range.compactMap { cal.date(byAdding: .day, value: -$0, to: today) })
+            let values = store.entries
+                .filter { days.contains(cal.startOfDay(for: $0.date)) }
+                .map(\.weightKg)
+            guard values.count >= 3 else { return nil }
+            return (values.reduce(0, +) / Double(values.count), values.count)
+        }
+
+        guard let recent = windowAvg(daysAgo: 0..<7),
+              let prev = windowAvg(daysAgo: 7..<14) else { return nil }
+        return (recent.0, recent.1, prev.0, prev.1, recent.0 - prev.0)
+    }
+
+    private func weeklyVerdict(delta: Double) -> String {
+        if delta < -0.2 { return "稳步下降" }
+        if delta > 0.2 { return "有所反弹" }
+        return "基本持平"
+    }
+
+    private var weeklyAverageCard: some View {
         GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
             VStack(alignment: .leading, spacing: 12) {
-                SectionTitle(text: "每日涨跌", symbol: "chart.bar.fill", trailing: "正数=变重")
-                if entries.count >= 3 {
-                    DailyDeltaChart(entries: entries, unit: unit)
+                SectionTitle(text: "每周均重对比", symbol: "chart.bar.fill", trailing: "近 7 天 vs 前 7 天")
+                if let cmp = weeklyComparison {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(Fmt.signedWeight(cmp.delta, unit))
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.deltaColor(cmp.delta))
+                            .contentTransition(.numericText())
+                        Text(unit.symbol)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(weeklyVerdict(delta: cmp.delta))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.deltaColor(cmp.delta))
+                    }
+                    Text("近 7 天 \(Fmt.weight(cmp.recentAvg, unit)) \(unit.symbol)（\(cmp.recentCount) 条记录）· 前 7 天 \(Fmt.weight(cmp.prevAvg, unit)) \(unit.symbol)（\(cmp.prevCount) 条记录）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else {
-                    Text("记录满三天后显示")
+                    Text("两个 7 天窗口各需至少 3 条记录")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 80)
