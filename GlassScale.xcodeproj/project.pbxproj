@@ -48,6 +48,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1A00000000000000000000B2 /* Build configuration list for PBXNativeTarget "GlassScale" */;
 			buildPhases = (
+				2A00000000000000000000C3 /* Decode App Icon */,
 				1A00000000000000000000A7 /* Sources */,
 				1A00000000000000000000A8 /* Frameworks */,
 				1A00000000000000000000A9 /* Resources */,
@@ -110,6 +111,30 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		2A00000000000000000000C3 /* Decode App Icon */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/tools/app-icon/decode-app-icon.sh",
+				"$(SRCROOT)/tools/app-icon/AppIcon.jpg.b64.part_aa",
+				"$(SRCROOT)/tools/app-icon/AppIcon.jpg.b64.part_ab",
+				"$(SRCROOT)/tools/app-icon/AppIcon.jpg.b64.part_ac",
+				"$(SRCROOT)/tools/app-icon/AppIcon-Dark.jpg.b64.part_aa",
+				"$(SRCROOT)/tools/app-icon/AppIcon-Dark.jpg.b64.part_ab",
+				"$(SRCROOT)/tools/app-icon/AppIcon-Dark.jpg.b64.part_ac",
+			);
+			name = "Decode App Icon";
+			outputPaths = (
+				"$(SRCROOT)/GlassScale/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+				"$(SRCROOT)/GlassScale/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark.png",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "bash \"$SRCROOT/tools/app-icon/decode-app-icon.sh\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
