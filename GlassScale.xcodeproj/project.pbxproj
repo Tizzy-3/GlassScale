@@ -276,7 +276,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "琉璃称";
+				INFOPLIST_KEY_CFBundleDisplayName = "轻一点";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取「健康」中的体重数据，用于在本机生成你的体重趋势。数据不会离开你的设备。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "把你在本应用记录的体重写入「健康」，以便与其他健康数据统一管理。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -309,7 +309,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "琉璃称";
+				INFOPLIST_KEY_CFBundleDisplayName = "轻一点";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取「健康」中的体重数据，用于在本机生成你的体重趋势。数据不会离开你的设备。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "把你在本应用记录的体重写入「健康」，以便与其他健康数据统一管理。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
