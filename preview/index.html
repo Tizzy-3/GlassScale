@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>琉璃称 GlassScale · UI 原型</title>
+<style>
+:root{
+  --aqua:#4AB8FA; --violet:#9466F7; --mint:#2BD9A8; --coral:#FA7869;
+  --ink:#fff; --ink2:rgba(255,255,255,.62); --ink3:rgba(255,255,255,.38);
+  --stroke:rgba(255,255,255,.16);
+  --glassBg:linear-gradient(158deg,rgba(255,255,255,.15),rgba(255,255,255,.05));
+  --page:0a0c18;
+}
+html[data-mode="light"]{
+  --ink:#12142a; --ink2:rgba(20,22,45,.60); --ink3:rgba(20,22,45,.34);
+  --stroke:rgba(20,30,70,.12);
+  --glassBg:linear-gradient(158deg,rgba(255,255,255,.62),rgba(255,255,255,.34));
+  --page:#eef1fb;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0; min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
+  background:var(--page); color:var(--ink); display:flex; flex-direction:column; align-items:center; gap:22px; padding:26px 16px 40px;
+  transition:background .4s,color .4s;
+}
+
+/* ---------- 顶部切换条 ---------- */
+.bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;max-width:720px}
+.bar button{
+  font:inherit;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;
+  padding:8px 14px;border-radius:999px;border:1px solid var(--stroke);background:var(--glassBg);
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+  transition:.22s;
+}
+.bar button:hover{color:var(--ink);transform:translateY(-1px)}
+.bar button.on{background:linear-gradient(140deg,var(--aqua),var(--mint));color:#04121a;border-color:transparent;box-shadow:0 6px 20px rgba(43,217,168,.3)}
+.bar .sep{width:1px;height:20px;background:var(--stroke)}
+.hint{font-size:12px;color:var(--ink3);text-align:center;max-width:660px;line-height:1.7}
+.hint b{color:var(--ink2);font-weight:600}
+
+/* ---------- 手机外框 ---------- */
+.phone{
+  position:relative;width:392px;height:846px;border-radius:54px;padding:11px;flex:none;
+  background:linear-gradient(160deg,#3a3f55,#15171f 40%,#0a0b12);
+  box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 0 2px rgba(255,255,255,.07) inset;
+}
+@media (max-width:440px){ .phone{transform:scale(.86);transform-origin:top center;margin-bottom:-110px} }
+.screen-clip{position:relative;width:100%;height:100%;border-radius:44px;overflow:hidden;isolation:isolate}
+
+/* ---------- 极光背景 ---------- */
+.aurora{position:absolute;inset:0;z-index:0;overflow:hidden;background:linear-gradient(170deg,#05060f 0%,#0f0a24 60%,#140b2b 100%)}
+html[data-mode="light"] .aurora{background:linear-gradient(170deg,#eef2ff,#e2e7fb 60%,#eae4fb)}
+.aurora i{position:absolute;display:block;border-radius:50%;filter:blur(0px);mix-blend-mode:screen}
+html[data-mode="light"] .aurora i{mix-blend-mode:normal}
+.aurora i:nth-child(1){width:520px;height:520px;left:-110px;top:-70px;background:radial-gradient(circle,rgba(74,184,250,.72),rgba(74,184,250,.22) 45%,transparent 72%);animation:drift1 24s ease-in-out infinite}
+.aurora i:nth-child(2){width:470px;height:470px;right:-130px;top:120px;background:radial-gradient(circle,rgba(148,102,247,.70),rgba(148,102,247,.20) 45%,transparent 72%);animation:drift2 29s ease-in-out infinite}
+.aurora i:nth-child(3){width:500px;height:500px;left:-40px;bottom:-140px;background:radial-gradient(circle,rgba(43,217,168,.55),rgba(43,217,168,.16) 45%,transparent 72%);animation:drift3 34s ease-in-out infinite}
+.aurora i:nth-child(4){width:300px;height:300px;right:-40px;bottom:120px;background:radial-gradient(circle,rgba(250,120,105,.34),transparent 70%);animation:drift2 26s ease-in-out infinite reverse}
+@keyframes drift1{0%,100%{transform:translate(0,0)}50%{transform:translate(46px,40px)}}
+@keyframes drift2{0%,100%{transform:translate(0,0)}50%{transform:translate(-40px,48px)}}
+@keyframes drift3{0%,100%{transform:translate(0,0)}50%{transform:translate(52px,-36px)}}
+@media (prefers-reduced-motion:reduce){.aurora i{animation:none}}
+
+/* ---------- 状态栏 ---------- */
+.status{position:relative;z-index:5;height:52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 6px;font-size:14px;font-weight:650;letter-spacing:.3px}
+.status .r{display:flex;gap:5px;align-items:center}
+.batt{width:24px;height:12px;border:1.4px solid currentColor;border-radius:3.5px;position:relative;opacity:.9}
+.batt::after{content:"";position:absolute;inset:2px;right:7px;background:currentColor;border-radius:1px}
+.batt::before{content:"";position:absolute;right:-3.5px;top:3.6px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0}
+
+/* ---------- 页面栈 ---------- */
+.stack{position:absolute;inset:52px 0 0 0;z-index:2}
+.page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:0 20px 168px;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .34s,transform .34s;scrollbar-width:none}
+.page::-webkit-scrollbar{display:none}
+.page.on{opacity:1;pointer-events:auto;transform:none}
+
+/* ---------- 玻璃材质 ---------- */
+.g{
+  background:var(--glassBg);backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);
+  border:1px solid var(--stroke);
+  box-shadow:0 10px 34px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.30);
+}
+html[data-mode="light"] .g{box-shadow:0 10px 30px rgba(40,50,110,.14),inset 0 1px 0 rgba(255,255,255,.85)}
+.g-tint{background:linear-gradient(158deg,rgba(74,184,250,.26),rgba(74,184,250,.07));border-color:rgba(74,184,250,.30)}
+
+/* ---------- 通用排版 ---------- */
+.hd{display:flex;align-items:center;justify-content:space-between;margin:10px 0 16px}
+.hd h1{margin:0;font-size:24px;font-weight:750;letter-spacing:-.4px}
+.hd .sub{font-size:13px;color:var(--ink2);margin-top:3px}
+.roundbtn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-size:17px;color:var(--aqua);cursor:pointer;border:1px solid var(--stroke);background:var(--glassBg);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.roundbtn:active{transform:scale(.93)}
+.sec{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:700;margin-bottom:12px}
+.sec .ic{font-size:13px;color:var(--aqua)}
+.sec .tr{margin-left:auto;font-size:11.5px;color:var(--ink3);font-weight:500}
+
+.card{border-radius:26px;padding:18px;margin-bottom:14px}
+.card.hero{border-radius:34px;padding:22px}
+.card.hero.g-tint{border-radius:34px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.tile{border-radius:22px;padding:15px}
+.tile .t{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink2);margin-bottom:7px}
+.tile .v{display:flex;align-items:baseline;gap:3px}
+.tile .v b{font-size:25px;font-weight:700;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
+.tile .v span{font-size:11px;color:var(--ink2);font-weight:500}
+.tile .c{font-size:10.5px;color:var(--ink3);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.chip{display:inline-flex;align-items:center;gap:4px;padding:6px 11px;border-radius:999px;font-size:11.5px;font-weight:600;border:1px solid var(--stroke);background:var(--glassBg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.rowline{height:1px;background:var(--stroke);margin:14px 0}
+
+/* ---------- Hero ---------- */
+.hero-top{display:flex;align-items:center;gap:18px}
+.hero-right{flex:1;min-width:0}
+.hero-lbl{font-size:11.5px;color:var(--ink2)}
+.hero-num{display:flex;align-items:baseline;gap:4px;margin-top:2px}
+.hero-num b{font-size:40px;font-weight:750;letter-spacing:-1.4px;font-variant-numeric:tabular-nums}
+.hero-num span{font-size:15px;color:var(--ink2);font-weight:600}
+.delta{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:650;margin-top:6px}
+.ring-txt{position:absolute;inset:0;display:grid;place-items:center;flex-direction:column}
+.ring-txt b{font-size:29px;font-weight:750;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+.ring-txt i{font-size:11px;font-style:normal;color:var(--ink2);font-weight:600;margin-top:2px}
+.ringwrap{position:relative;width:108px;height:108px;flex:none}
+.hero-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.forecast{font-size:11.5px;color:var(--ink2);margin-top:10px;display:flex;align-items:center;gap:5px}
+
+/* ---------- 图表 ---------- */
+.chart{width:100%;display:block;overflow:visible}
+.axl{font-size:9.5px;fill:var(--ink3)}
+.gridl{stroke:var(--stroke);stroke-width:.7}
+
+/* ---------- 列表 ---------- */
+.lrow{display:flex;align-items:center;gap:12px;padding:9px 0}
+.lrow .src{width:22px;text-align:center;font-size:12px;color:var(--ink3)}
+.lrow .w{font-size:19px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.lrow .u{font-size:10.5px;color:var(--ink2);margin-left:3px}
+.lrow .meta{font-size:10.5px;color:var(--ink3);margin-top:2px;display:flex;gap:6px}
+.lrow .d{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.grouphd{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:650;color:var(--ink2);padding:12px 4px 7px}
+
+.searchbar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:14px;margin-bottom:6px;font-size:13.5px;color:var(--ink3)}
+
+/* ---------- 底栏 ---------- */
+.accessory{
+  position:absolute;left:10px;right:10px;bottom:86px;z-index:6;
+  display:flex;align-items:center;gap:11px;padding:10px 14px;border-radius:24px;
+}
+.a-read{width:74px;flex:none}
+.a-read .k{font-size:10px;color:var(--ink2);font-weight:550}
+.a-read .v{display:flex;align-items:baseline;gap:2px}
+.a-read .v b{font-size:21px;font-weight:750;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
+.a-read .v i{font-size:10.5px;font-style:normal;color:var(--ink2);font-weight:600}
+.step{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:800;cursor:pointer;border:1px solid var(--stroke);background:rgba(255,255,255,.10)}
+html[data-mode="light"] .step{background:rgba(255,255,255,.55)}
+.step:active{transform:scale(.9)}
+.savebtn{flex:1;height:38px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:13px;font-weight:700;cursor:pointer;
+  background:linear-gradient(140deg,var(--aqua),var(--mint));color:#04121a;box-shadow:0 6px 20px rgba(43,217,168,.32);border:none}
+.savebtn:active{transform:scale(.97)}
+.savebtn.done{background:linear-gradient(140deg,var(--mint),#12b98a)}
+
+.tabbar{
+  position:absolute;left:10px;right:10px;bottom:10px;z-index:6;height:68px;border-radius:30px;
+  display:grid;grid-template-columns:repeat(4,1fr);align-items:center;padding:0 6px;
+}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:600;color:var(--ink3);cursor:pointer;padding:8px 0;border-radius:20px;transition:.24s}
+.tab .ic{font-size:20px;line-height:1}
+.tab.on{color:var(--aqua);background:rgba(255,255,255,.10)}
+html[data-mode="light"] .tab.on{background:rgba(74,184,250,.14)}
+.home-bar{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:120px;height:4px;border-radius:2px;background:var(--ink);opacity:.30;z-index:7}
+
+/* ---------- FAB ---------- */
+.fab{position:absolute;right:22px;bottom:176px;z-index:5;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.fab .act{display:flex;align-items:center;gap:6px;padding:9px 14px;border-radius:999px;font-size:12.5px;font-weight:650;cursor:pointer;border:1px solid var(--stroke);background:var(--glassBg);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);box-shadow:0 8px 24px rgba(0,0,0,.28)}
+.fab .plus{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:25px;font-weight:800;cursor:pointer;color:#04121a;
+  background:linear-gradient(140deg,var(--aqua),var(--mint));box-shadow:0 10px 30px rgba(43,217,168,.42);border:none}
+.fab .plus:active{transform:scale(.92)}
+
+/* ---------- 引导页 ---------- */
+.ob{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;padding:0 24px;background:transparent}
+.ob .mid{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px}
+.oblogo{width:170px;height:170px;border-radius:50%;display:grid;place-items:center;font-size:70px;margin:0 auto 6px;border:1px solid var(--stroke);background:rgba(255,255,255,.07);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.ob h2{font-size:38px;font-weight:780;letter-spacing:-1.4px;margin:0;text-align:center}
+.ob .tag{font-size:13.5px;color:var(--ink2);text-align:center;margin-top:-6px}
+.feat{display:flex;align-items:center;gap:13px}
+.feat .fi{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:17px;color:var(--aqua);flex:none;border:1px solid var(--stroke);background:var(--glassBg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.feat b{font-size:13px;display:block}
+.feat small{font-size:11px;color:var(--ink2);display:block;margin-top:2px;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin-bottom:14px}
+.dots i{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.22);transition:.3s}
+.dots i.on{width:22px;background:var(--aqua)}
+.obnav{display:flex;gap:12px;margin-bottom:26px}
+.pill{flex:1;height:46px;border-radius:999px;display:grid;place-items:center;font-size:14.5px;font-weight:700;cursor:pointer;border:1px solid var(--stroke);background:var(--glassBg);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.pill.pri{flex:2;background:linear-gradient(140deg,var(--aqua),var(--mint));color:#04121a;border-color:transparent;box-shadow:0 8px 26px rgba(43,217,168,.34)}
+
+/* ---------- 表单 ---------- */
+.field{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13.5px}
+.field .v{font-size:13px;color:var(--ink2)}
+.dial{text-align:center;padding:8px 0 4px}
+.dial .lab{font-size:11.5px;color:var(--ink2)}
+.dial .big{font-size:52px;font-weight:780;letter-spacing:-2px;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;justify-content:center;gap:6px}
+.dial .big i{font-size:20px;font-style:normal;color:var(--ink2);font-weight:600}
+.dialsteps{display:flex;gap:10px;justify-content:center;margin-top:14px}
+.slider{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:99px;margin-top:14px;background:linear-gradient(90deg,var(--aqua) 0%,var(--mint) 62%,rgba(255,255,255,.18) 62%)}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;border:none;box-shadow:0 3px 12px rgba(0,0,0,.35)}
+.slider::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:none}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:999px}
+.seg.seg5{grid-template-columns:repeat(5,1fr)}
+.seg div{text-align:center;padding:8px 0;border-radius:999px;font-size:13px;font-weight:650;color:var(--ink2);cursor:pointer;transition:.24s}
+.seg div.on{background:rgba(255,255,255,.20);color:var(--ink)}
+html[data-mode="light"] .seg div.on{background:rgba(74,184,250,.18)}
+.togrow{display:flex;align-items:center;gap:12px;font-size:13.5px;cursor:pointer}
+.togrow .ti{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:12.5px;color:var(--aqua);flex:none;border:1px solid var(--stroke);background:var(--glassBg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.sw{margin-left:auto;width:42px;height:25px;border-radius:99px;background:rgba(255,255,255,.18);position:relative;flex:none;transition:.25s}
+.sw::after{content:"";position:absolute;top:2.5px;left:2.5px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.25s;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.sw.on{background:var(--mint)}
+.sw.on::after{left:19.5px}
+.ft{font-size:11px;color:var(--ink3);line-height:1.65;margin:10px 4px 16px}
+
+/* ---------- Sheet ---------- */
+.scrim{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.38);opacity:0;pointer-events:none;transition:.3s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:31;height:88%;border-radius:34px 34px 0 0;transform:translateY(102%);transition:transform .38s cubic-bezier(.32,.72,0,1);overflow-y:auto;padding:12px 20px 30px}
+.sheet.on{transform:none}
+.sheet .grab{width:38px;height:5px;border-radius:99px;background:var(--ink);opacity:.25;margin:0 auto 14px}
+.sheet .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.sheet .nav b{font-size:16px;font-weight:700}
+.sheet .nav span{font-size:14px;color:var(--aqua);cursor:pointer;font-weight:600}
+</style>
+</head>
+<body data-mode="dark">
+
+<div class="bar">
+  <button data-go="ob" class="on">引导页</button>
+  <button data-go="dashboard">首页</button>
+  <button data-go="history">记录</button>
+  <button data-go="trends">趋势</button>
+  <button data-go="settings">我的</button>
+  <span class="sep"></span>
+  <button id="sheetBtn">记一笔（弹窗）</button>
+  <button id="modeBtn">切换浅色</button>
+</div>
+<div class="hint">
+  高保真 UI 原型，<b>布局与配色 1:1 对应 SwiftUI 代码</b>（<code>GlassCard</code> / <code>StatTile</code> / <code>QuickLogBar</code> / <code>WeightChartView</code> 等），数据用与 <code>SampleData.make</code> 相同的 90 天曲线逻辑生成。
+  可点底部标签栏切换，也可动右下角 + 展开玻璃按钮组。
+</div>
+
+<div class="phone">
+  <div class="screen-clip">
+    <div class="aurora"><i></i><i></i><i></i><i></i></div>
+
+    <div class="status">
+      <span id="clock">9:41</span>
+      <span class="r">▮▮▮ &nbsp;<span class="batt"></span></span>
+    </div>
+
+    <div class="stack">
+      <!-- 首页 -->
+      <section class="page" id="dashboard"></section>
+      <!-- 记录 -->
+      <section class="page" id="history"></section>
+      <!-- 趋势 -->
+      <section class="page" id="trends"></section>
+      <!-- 我的 -->
+      <section class="page" id="settings"></section>
+    </div>
+
+    <!-- 引导页 -->
+    <div class="ob" id="ob"></div>
+
+    <!-- FAB -->
+    <div class="fab" id="fab" style="display:none">
+      <div class="act" data-act="celebrate" style="display:none">🏆 达成记录</div>
+      <div class="act" data-act="sample" style="display:none">✨ 示例数据</div>
+      <div class="act" data-act="manual" style="display:none">📝 手动记录</div>
+      <div class="plus" id="fabPlus">+</div>
+    </div>
+
+    <!-- 底部快捷条 -->
+    <div class="accessory g" id="accessory"></div>
+
+    <!-- 标签栏 -->
+    <nav class="tabbar g" id="tabbar"></nav>
+    <div class="home-bar"></div>
+
+    <!-- Sheet -->
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet g" id="sheet"></div>
+  </div>
+</div>
+
+<script>
+/* ============ 数据：与 SampleData.make 同构 ============ */
+let _s=20260930;
+function rnd(){_s=(_s*1103515245+12345)%2147483648;return _s/2147483648;}
+const START=78.6, END=68.4, N=90;
+const DATA=(()=>{
+  const out=[],now=new Date(2026,8,30);
+  for(let i=0;i<N;i++){
+    const p=i/(N-1);
+    const trend=START+(END-START)*p;
+    const d=new Date(now); d.setDate(now.getDate()-(N-1-i));
+    d.setHours(7, Math.floor(rnd()*40)+10, 0, 0);
+    const wd=d.getDay();
+    const bump=(wd===0||wd===6)?0.35:0;
+    const noise=(rnd()*2-1)*0.32;
+    const w=Math.round((trend+bump+noise)*10)/10;
+    out.push({date:d,w,fat:Math.round((22.4-p*3.1+(rnd()*2-1)*0.4)*10)/10});
+  }
+  return out;
+})();
+const TARGET=60.4, TODAY=new Date(2026,8,30);
+const cur=DATA[DATA.length-1].w;
+const d7=DATA[DATA.length-1].w-DATA[DATA.length-8].w;
+const avg7=DATA.slice(-7).reduce((a,b)=>a+b.w,0)/7;
+const d30=DATA[DATA.length-1].w-DATA[0].w;
+const PROGRESS=Math.max(0,Math.min(1,(cur-START)/(TARGET-START)));
+const REMAIN=Math.abs(TARGET-cur);
+const lastDelta=DATA[DATA.length-1].w-DATA[DATA.length-2].w;
+const BMIv=cur/Math.pow(172/100,2);
+
+/* ============ 工具 ============ */
+const f1=v=>(Math.round(v*10)/10).toFixed(1);
+const sg=v=>v>0?'+':(v<0?'−':'');
+const sgn=v=>sg(v)+f1(Math.abs(v));
+const col=v=>v>0?'var(--coral)':'var(--mint)';
+const fmt=d=>`${d.getMonth()+1}月${d.getDate()}日`;
+const clock=d=>`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+/* ============ 图表 ============ */
+function areaChart(list,w,h,goal,avg,padT=10){
+  const vs=list.map(d=>d.w); if(goal!=null)vs.push(goal);
+  const lo=Math.min(...vs),hi=Math.max(...vs);
+  const p=Math.max((hi-lo)*0.18,0.8);
+  const y0=lo-p,y1=hi+p;
+  const X=i=>list.length<2?w/2:8+i*(w-16)/(list.length-1);
+  const Y=v=>padT+(1-(v-y0)/(y1-y0))*(h-padT-18);
+  let line='',area='';
+  list.forEach((d,i)=>{const x=X(i).toFixed(1),y=Y(d.w).toFixed(1);line+=(i?'L':'M')+x+' '+y+' ';});
+  area=line+`L${X(list.length-1).toFixed(1)} ${h-18} L${X(0).toFixed(1)} ${h-18} Z`;
+  let g='';
+  for(let i=0;i<4;i++){const y=padT+((h-padT-18)*i/3).toFixed(1);g+=`<line class="gridl" x1="0" x2="${w}" y1="${y}" y2="${y}"/>`;}
+  let a='';
+  if(avg){
+    let ap='';
+    list.forEach((d,i)=>{
+      const s=Math.max(0,i-6);const win=list.slice(s,i+1);
+      const m=win.reduce((x,y)=>x+y.w,0)/win.length;
+      ap+=(i?'L':'M')+X(i).toFixed(1)+' '+Y(m).toFixed(1)+' ';
+    });
+    a=`<path d="${ap}" fill="none" stroke="var(--mint)" stroke-width="1.8" stroke-dasharray="5 4" opacity=".9"/>`;
+  }
+  const goalLine=goal!=null?`<line x1="0" x2="${w}" y1="${Y(goal).toFixed(1)}" y2="${Y(goal).toFixed(1)}" stroke="var(--ink)" stroke-opacity=".42" stroke-width="1.2" stroke-dasharray="4 4"/>
+    <text class="axl" x="2" y="${(Y(goal)-5).toFixed(1)}">目标 ${f1(goal)}</text>`:'';
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" height="${h}">${g}${goalLine}
+    <path d="${area}" fill="url(#ag)"/><defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="var(--aqua)" stop-opacity=".40"/><stop offset="1" stop-color="var(--aqua)" stop-opacity="0"/></linearGradient></defs>
+    ${a}<path d="${line}" fill="none" stroke="url(#lg)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--aqua)"/><stop offset="1" stop-color="var(--mint)"/></linearGradient></defs>
+    <circle cx="${X(list.length-1).toFixed(1)}" cy="${Y(cur).toFixed(1)}" r="4.5" fill="#fff"/>
+    <circle cx="${X(list.length-1).toFixed(1)}" cy="${Y(cur).toFixed(1)}" r="9" fill="#fff" opacity=".18"/>
+  </svg>`;
+}
+function deltaBars(list,w,h){
+  const bars=[];
+  for(let i=1;i<list.length;i++){const d=list[i].w-list[i-1].w;if(Math.abs(d)>0.05)bars.push({d:list[i].date,v:d});}
+  const mx=Math.max(...bars.map(b=>Math.abs(b.v)),0.3);
+  const mid=h/2, bw=Math.max(2,(w-10)/bars.length-2.5);
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" height="${h}">
+    <line class="gridl" x1="0" x2="${w}" y1="${mid}" y2="${mid}"/>
+    ${bars.map((b,i)=>{const bh=Math.max(2,(Math.abs(b.v)/mx)*(h/2-6));const x=5+i*((w-10)/bars.length);
+      return `<rect x="${x.toFixed(1)}" y="${(b.v>0?mid-bh:mid).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${b.v>0?'var(--coral)':'var(--mint)'}" opacity=".88"/>`;}).join('')}
+  </svg>`;
+}
+
+/* ============ 页面渲染 ============ */
+function ring(pct){
+  const R=46,C=2*Math.PI*R,o=C*(1-pct);
+  return `<div class="ringwrap"><svg viewBox="0 0 108 108" width="108" height="108">
+    <circle cx="54" cy="54" r="${R}" fill="none" stroke="var(--ink)" stroke-opacity=".14" stroke-width="9"/>
+    <circle cx="54" cy="54" r="${R}" fill="none" stroke="url(#rg)" stroke-width="9" stroke-linecap="round"
+      stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${o.toFixed(1)}" transform="rotate(-90 54 54)"/>
+    <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--aqua)"/><stop offset=".5" stop-color="var(--mint)"/><stop offset="1" stop-color="var(--violet)"/></linearGradient></defs>
+    </svg><div class="ring-txt"><b>${Math.round(pct*100)}</b><i>%</i></div></div>`;
+}
+const tile=(t,v,u,ic,c,color)=>`<div class="tile g"><div class="t"><span>${ic}</span>${t}</div>
+  <div class="v"><b style="${color?`color:${color}`:''}">${v}</b>${u?`<span>${u}</span>`:''}</div>
+  ${c?`<div class="c">${c}</div>`:''}</div>`;
+
+/* 首页 */
+document.getElementById('dashboard').innerHTML=`
+  <div class="hd"><div><h1>早上好</h1><div class="sub">9月30日 星期三</div></div><div class="roundbtn">◎</div></div>
+
+  <div class="card hero g g-tint">
+    <div class="hero-top">
+      ${ring(PROGRESS)}
+      <div class="hero-right">
+        <div class="hero-lbl">当前体重</div>
+        <div class="hero-num"><b>${f1(cur)}</b><span>kg</span></div>
+        <div class="delta" style="color:${col(lastDelta)}">${lastDelta>0?'↗':'↘'} 较上次 ${sgn(lastDelta)} kg</div>
+      </div>
+    </div>
+    <div class="rowline"></div>
+    <div class="hero-foot">
+      <span class="chip">🎯 目标 ${f1(TARGET)} kg</span>
+      <span class="chip">📏 还差 ${f1(REMAIN)} kg</span>
+    </div>
+    <div class="forecast">✨ 按当前速度，预计 12月18日 达成</div>
+  </div>
+
+  <div class="grid2">
+    ${tile('近 7 日均',f1(avg7),'kg','📈','抹掉每日水分波动')}
+    ${tile('本周变化',sgn(d7),'kg','📅',`↓ 每周 0.4 kg`,col(d7))}
+    ${tile('距目标',f1(REMAIN),'kg','🚩','目标 60.4 kg')}
+    ${tile('BMI',f1(BMIv),'','🧍','正常',BMIv<24?'var(--mint)':'var(--violet)')}
+  </div>
+
+  <div class="card g">
+    <div class="sec"><span class="ic">📊</span>近 30 天<span class="tr">虚线为 7 日均线</span></div>
+    ${areaChart(DATA.slice(-30),330,190,TARGET,true)}
+  </div>
+
+  <div class="card g">
+    <div class="sec"><span class="ic">🕘</span>最近记录<span class="tr">连续 12 天</span></div>
+    ${DATA.slice(-3).map((d,i)=>{
+      const idx=DATA.length-3+i, pv=DATA[idx-1];
+      const dd=pv?Math.round((d.w-pv.w)*10)/10:0;
+      return `<div class="lrow"><div class="src">✋</div>
+        <div><div class="w">${f1(d.w)}<span class="u">kg</span></div><div class="meta">${fmt(d.date)} ${clock(d.date)} · 体脂 ${f1(d.fat)}%</div></div>
+        <div style="flex:1"></div><div class="d" style="color:${col(dd)}">${sgn(dd)}</div></div>`;
+    }).reverse().join('')}
+  </div>`;
+
+/* 记录 */
+const months={};
+DATA.slice().reverse().forEach(d=>{
+  const k=`${d.date.getFullYear()}年${d.date.getMonth()+1}月`;
+  (months[k]=months[k]||[]).push(d);
+});
+document.getElementById('history').innerHTML=`
+  <div class="hd"><div><h1>记录</h1><div class="sub">共 ${DATA.length} 条 · 全部保存在本机</div></div><div class="roundbtn">⋯</div></div>
+  <div class="searchbar g">🔍 搜索备注或体重</div>
+  ${Object.entries(months).map(([k,list])=>{
+    const net=list[list.length-1].w-list[0].w;
+    return `<div class="grouphd"><span>${k}</span><span style="color:${col(net)}">${sgn(net)} kg</span></div>
+    <div class="card g" style="border-radius:22px;padding:6px 16px">${list.map((d,i)=>{
+      const pv=list[i+1];
+      const dd=pv?Math.round((d.w-pv.w)*10)/10:0;
+      return `<div class="lrow"><div class="src">✋</div>
+        <div><div class="w">${f1(d.w)}<span class="u">kg</span></div><div class="meta">${d.date.getMonth()+1}月${d.date.getDate()}日 ${clock(d.date)} · 体脂 ${f1(d.fat)}%</div></div>
+        <div style="flex:1"></div>${dd?`<div class="d" style="color:${col(dd)}">${sgn(dd)}</div>`:''}</div>`;
+    }).join('')}</div>`;
+  }).join('')}`;
+
+/* 趋势 */
+document.getElementById('trends').innerHTML=`
+  <div class="hd"><div><h1>趋势</h1><div class="sub">90 天 · ${DATA.length} 条记录</div></div></div>
+  <div class="seg g seg5" style="margin-bottom:14px"><div>1 月</div><div class="on">3 月</div><div>6 月</div><div>1 年</div><div>全部</div></div>
+  <div class="card g">
+    <div style="display:flex;align-items:baseline;gap:5px;margin-bottom:12px">
+      <b style="font-size:33px;font-weight:750;letter-spacing:-1.2px">${f1(cur)}</b><span style="font-size:13px;color:var(--ink2);font-weight:600">kg</span>
+      <div style="flex:1"></div><span style="font-size:11.5px;color:var(--ink3)">${DATA.length} 条记录</span>
+    </div>
+    ${areaChart(DATA,330,250,TARGET,true)}
+  </div>
+  <div class="grid2">
+    ${tile('区间净变化',sgn(d30),'kg','⇄','3 月累计',col(d30))}
+    ${tile('每周速度','−0.4','kg','🚀','线性拟合',col(-0.4))}
+    ${tile('区间均重',f1(DATA.reduce((a,b)=>a+b.w,0)/DATA.length),'kg','⭕','最近 30 条均值')}
+    ${tile('最高 / 最低',f1(Math.min(...DATA.map(d=>d.w)))+' / '+f1(Math.max(...DATA.map(d=>d.w))),'','↕','区间内极值')}
+  </div>
+  <div class="card g">
+    <div class="sec"><span class="ic">📶</span>每日涨跌<span class="tr">正数 = 变重</span></div>
+    ${deltaBars(DATA,330,120)}
+  </div>`;
+
+/* 我的 */
+const row=(ic,t,v,color)=>`<div class="togrow" style="padding:7px 0"><div class="ti" style="color:${color||'var(--aqua)'}">${ic}</div><span>${t}</span><div class="v" style="margin-left:auto;font-size:13px;color:var(--ink2)">${v||''}</div></div>`;
+document.getElementById('settings').innerHTML=`
+  <div class="hd"><div><h1>我的</h1></div></div>
+  <div class="card g" style="border-radius:22px;padding:4px 16px">
+    <div style="font-size:12px;color:var(--ink3);padding:14px 0 6px">身体档案</div>
+    ${row('📏','身高 / 年龄 / 性别','172 cm')}
+    ${row('⚖️','起始体重',f1(START)+' kg')}
+  </div>
+  <div class="card g" style="border-radius:22px;padding:4px 16px">
+    <div style="font-size:12px;color:var(--ink3);padding:14px 0 6px">目标</div>
+    ${row('🎯','目标体重',f1(TARGET)+' kg','var(--aqua)')}
+    ${row('📆','目标日期','2026-12-30','var(--aqua)')}
+  </div>
+  <div class="card g" style="border-radius:22px;padding:4px 16px">
+    <div style="font-size:12px;color:var(--ink3);padding:14px 0 6px">单位</div>
+    <div class="togrow" style="padding:9px 0"><div class="ti">⚖️</div><span>体重</span>
+      <div class="seg g" style="margin-left:auto;width:190px;grid-template-columns:repeat(3,1fr)"><div class="on">公斤</div><div>市斤</div><div>磅</div></div></div>
+    <div class="togrow" style="padding:9px 0"><div class="ti">📏</div><span>身高</span>
+      <div class="seg g" style="margin-left:auto;width:190px;grid-template-columns:repeat(3,1fr)"><div class="on">厘米</div><div>英寸</div><div></div></div></div>
+  </div>
+  <div class="card g" style="border-radius:22px;padding:4px 16px">
+    <div style="font-size:12px;color:var(--ink3);padding:14px 0 6px">Apple 健康</div>
+    <div class="togrow" style="padding:7px 0"><div class="ti">❤️</div><span>状态</span><div class="v" style="margin-left:auto;font-size:13px;color:var(--mint)">已连接</div></div>
+    ${row('⬇️','从「健康」导入','','var(--mint)')}
+    <div class="togrow" style="padding:9px 0"><div class="ti" style="color:var(--mint)">🔄</div><span>保存时同时写入「健康」</span><div class="sw on"></div></div>
+  </div>
+  <div class="card g" style="border-radius:22px;padding:4px 16px">
+    <div style="font-size:12px;color:var(--ink3);padding:14px 0 6px">数据</div>
+    ${row('⬆️','导出数据','','var(--violet)')}
+    ${row('✨','载入示例数据','','var(--violet)')}
+    ${row('🗑️','清空全部记录','','var(--coral)')}
+  </div>
+  <div class="card g" style="border-radius:22px;padding:4px 16px">
+    <div style="font-size:12px;color:var(--ink3);padding:14px 0 6px">关于</div>
+    ${row('🔥','连续记录','12 天')}
+    ${row('📅','最早记录','2026-07-02')}
+    ${row('ℹ️','版本','1.0')}
+  </div>
+  <div class="ft">所有数据仅保存在本机 Application Support 目录，没有账号、没有网络请求。</div>`;
+
+/* 底部快捷条 */
+document.getElementById('accessory').innerHTML=`
+  <div class="a-read"><div class="k">今天</div><div class="v"><b>${f1(cur)}</b><i>kg</i></div></div>
+  <div class="step">−</div><div class="step">+</div>
+  <div class="savebtn" id="saveBtn">↓ 记一笔</div>`;
+
+/* 标签栏 */
+const TABS=[['dashboard','⌂','首页'],['history','☰','记录'],['trends','📈','趋势'],['settings','👤','我的']];
+document.getElementById('tabbar').innerHTML=TABS.map(([id,ic,t])=>
+  `<div class="tab" data-tab="${id}"><span class="ic">${ic}</span>${t}</div>`).join('');
+
+/* 引导页 */
+const OB=[
+  `<div class="mid">
+     <div class="oblogo">⚖️</div>
+     <h2>琉璃称</h2>
+     <div class="tag">液态玻璃质感的体重管理记录</div>
+   </div>
+   <div>
+     <div class="feat"><div class="fi">📊</div><div><b>看得清趋势</b><small>日均线抹掉水分波动，只留真实变化</small></div></div><div style="height:12px"></div>
+     <div class="feat"><div class="fi">🔒</div><div><b>只存在这台设备</b><small>没有账号、没有联网，数据不会上传</small></div></div><div style="height:12px"></div>
+     <div class="feat"><div class="fi">❤️</div><div><b>可对接「健康」</b><small>授权后自动同步 iPhone 与 Apple Watch 的体重</small></div></div>
+   </div>`,
+  `<div>
+     <div style="margin:16px 0 20px"><div style="font-size:28px;font-weight:780;letter-spacing:-1px">先了解一下你</div>
+     <div style="font-size:13px;color:var(--ink2);margin-top:5px">身高用来算 BMI，性别年龄暂时只存在本机</div></div>
+     <div class="card g" style="padding:18px">
+       <div class="field"><span>📏 身高</span><b style="font-size:22px">172 cm</b></div>
+       <input class="slider" type="range" value="52">
+     </div>
+     <div class="seg g" style="margin:12px 0"><div>女</div><div class="on">男</div><div>不填</div></div>
+     <div class="card g" style="padding:18px"><div class="field"><span>🎂 年龄</span><b>28 岁</b></div></div>
+     <div class="card hero g g-tint" style="margin-top:14px">
+       <div class="dial"><div class="lab">现在的体重</div><div class="big">78.6<i>kg</i></div>
+       <div class="dialsteps"><div class="step">−</div><div class="step">+</div></div></div>
+     </div>
+   </div>`,
+  `<div>
+     <div style="margin:16px 0 20px"><div style="font-size:28px;font-weight:780;letter-spacing:-1px">定一个目标</div>
+     <div style="font-size:13px;color:var(--ink2);margin-top:5px">可以随时改，先定下来更容易坚持</div></div>
+     <div class="card hero g" style="padding:18px">
+       <div class="dial"><div class="lab">目标体重</div><div class="big">60.4<i>kg</i></div>
+       <div style="font-size:11.5px;color:var(--ink2);margin-top:8px">需要减 18.2 kg</div>
+       <div class="dialsteps"><div class="step">−</div><div class="step">+</div></div></div>
+     </div>
+     <div class="card g" style="padding:18px;margin-top:12px"><div class="field"><span>📆 希望达成于</span><b>2026年12月30日</b></div></div>
+     <div class="card g" style="padding:16px;margin-top:12px">
+       <div class="togrow"><div class="ti" style="color:var(--violet)">✨</div>
+       <div><b style="font-size:13.5px">先放 90 天示例数据</b><small style="display:block;font-size:11px;color:var(--ink2);margin-top:3px">方便你先看看长什么样，之后可一键清空</small></div>
+       <div class="sw on" style="margin-left:auto"></div></div>
+     </div>
+   </div>`];
+let obPage=0;
+function paintOB(){
+  document.getElementById('ob').innerHTML=
+    `<div class="mid" style="flex:0 0 auto">${OB[obPage]}</div>
+     <div class="dots">${[0,1,2].map(i=>`<i class="${i===obPage?'on':''}"></i>`).join('')}</div>
+     <div class="obnav">${obPage>0?'<div class="pill" id="obPrev">‹ 上一步</div>':''}
+       <div class="pill pri" id="obNext">${obPage===2?'开始使用':'下一步'}</div></div>`;
+  const nx=document.getElementById('obNext'); if(nx)nx.onclick=()=>{
+    if(obPage===2){showTabs();return;} obPage++;paintOB();};
+  const pv=document.getElementById('obPrev'); if(pv)pv.onclick=()=>{obPage--;paintOB();};
+}
+
+/* 记一笔 Sheet */
+function paintSheet(){
+  document.getElementById('sheet').innerHTML=`
+    <div class="grab"></div>
+    <div class="nav"><span style="color:var(--ink2)">取消</span><b>记一笔</b><span>✓ 保存</span></div>
+    <div class="card hero g g-tint">
+      <div class="dial"><div class="lab">体重</div><div class="big">${f1(cur)}<i>kg</i></div>
+        <div class="dialsteps"><div class="step">−</div><div class="step">+</div>
+        <div class="step" style="margin-left:8px;color:var(--mint)">↻</div></div></div>
+    </div>
+    <div class="card g" style="margin-top:14px">
+      <div class="field"><span>🗓 间</span><b>9月30日 07:20</b></div>
+      <div class="rowline"></div>
+      <div class="field"><span>💯 体脂率</span><b>选填</b></div>
+      <div class="rowline"></div>
+      <div class="field"><span>📝 备注</span><b>选填</b></div>
+    </div>
+    <div class="card g" style="padding:16px"><div class="togrow"><div class="ti" style="color:var(--mint)">❤️</div><span>同时写入「健康」</span><div class="sw on" style="margin-left:auto"></div></div></div>`;
+}
+
+/* ============ 交互 ============ */
+function showTabs(){
+  document.getElementById('ob').style.display='none';
+  document.getElementById('fab').style.display='flex';
+  document.getElementById('accessory').style.display='flex';
+  document.getElementById('tabbar').style.display='grid';
+  go(curTab);
+}
+let curTab='dashboard';
+function go(id){
+  if(id!=='ob'){
+    document.getElementById('ob').style.display='none';
+    document.getElementById('fab').style.display='flex';
+    document.getElementById('accessory').style.display='flex';
+    document.getElementById('tabbar').style.display='grid';
+  }else{
+    document.getElementById('ob').style.display='flex';
+    document.getElementById('fab').style.display='none';
+    document.getElementById('accessory').style.display='none';
+    document.getElementById('tabbar').style.display='none';
+  }
+  curTab=id;
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id===id));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===id));
+  document.querySelectorAll('.bar button[data-go]').forEach(b=>b.classList.toggle('on',b.dataset.go===id));
+  if(id==='ob'){document.getElementById('fab').style.display='none';
+    document.getElementById('accessory').style.display='none';
+    document.getElementById('tabbar').style.display='none';}
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>go(t.dataset.tab));
+document.querySelectorAll('.bar button[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+
+let fabOpen=false;
+document.getElementById('fabPlus').onclick=()=>{
+  fabOpen=!fabOpen;
+  document.querySelectorAll('#fab .act').forEach((a,i)=>{
+    const idx=2-i;
+    a.style.opacity=fabOpen?1:0;
+    a.style.transform=fabOpen?'translateY(0)':'translateY(14px) scale(.85)';
+    a.style.display=fabOpen?'flex':'none';
+  });
+  document.getElementById('fabPlus').textContent=fabOpen?'×':'+';
+};
+document.querySelectorAll('#fab .act').forEach(a=>a.onclick=()=>{
+  if(a.dataset.act==='manual'){openSheet();}
+  else{alert(a.dataset.act==='celebrate'?'达成目标时弹出玻璃庆祝浮层 🏆':'载入 90 天示例数据 ✨');}
+  document.getElementById('fabPlus').click();
+});
+
+const scrim=document.getElementById('scrim'),sheetEl=document.getElementById('sheet');
+function openSheet(){paintSheet();scrim.classList.add('on');sheetEl.classList.add('on');}
+function closeSheet(){scrim.classList.remove('on');sheetEl.classList.remove('on');}
+scrim.onclick=closeSheet;
+document.getElementById('sheetBtn').onclick=openSheet;
+document.getElementById('modeBtn').onclick=e=>{
+  const dark=document.body.dataset.mode==='dark';
+  document.body.dataset.mode=dark?'light':'dark';
+  document.documentElement.dataset.mode=dark?'light':'dark';
+  e.target.textContent=dark?'切换深色':'切换浅色';
+};
+document.getElementById('saveBtn').onclick=e=>{
+  const b=e.currentTarget;b.classList.toggle('done');
+  b.textContent=b.classList.contains('done')?'✓ 已记录':'↓ 记一笔';
+};
+document.getElementById('clock').textContent='9:41';
+paintOB();
+// 支持 #dashboard / #history / #trends / #settings / #ob 直接定位某屏
+const HASH={dashboard:1,history:1,trends:1,settings:1,ob:1};
+function fromHash(){
+  const h=(location.hash||'').replace('#','');
+  go(HASH[h]?h:'ob');
+}
+window.addEventListener('hashchange',fromHash);
+fromHash();
+</script>
+</body>
+</html>
