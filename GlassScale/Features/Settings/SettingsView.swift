@@ -57,7 +57,7 @@ struct SettingsView: View {
     private var profileHeader: some View {
         GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 20) {
             VStack(spacing: 14) {
-                Button { showProfileEditor = true } {
+                Button { showProfileEditor = true } label: {
                     HStack(spacing: 16) {
                         avatarView(size: 62)
 
