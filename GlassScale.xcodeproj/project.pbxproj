@@ -48,11 +48,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1A00000000000000000000B2 /* Build configuration list for PBXNativeTarget "GlassScale" */;
 			buildPhases = (
-				2A00000000000000000000C1 /* Decode Alternate App Icons */,
 				1A00000000000000000000A7 /* Sources */,
 				1A00000000000000000000A8 /* Frameworks */,
 				1A00000000000000000000A9 /* Resources */,
-				2A00000000000000000000C2 /* Register Alternate App Icons */,
 			);
 			buildRules = (
 			);
@@ -112,44 +110,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		2A00000000000000000000C1 /* Decode Alternate App Icons */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/tools/alt-icons/decode-alt-icons.sh",
-				"$(SRCROOT)/tools/alt-icons/AppIcon-Cat.jpg.b64",
-				"$(SRCROOT)/tools/alt-icons/AppIcon-Dumbbell.jpg.b64",
-			);
-			name = "Decode Alternate App Icons";
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Cat.png",
-				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Dumbbell.png",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "bash \"$SRCROOT/tools/alt-icons/decode-alt-icons.sh\"\n";
-		};
-		2A00000000000000000000C2 /* Register Alternate App Icons */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/tools/alt-icons/register-alt-icons.sh",
-				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Cat.png",
-				"$(DERIVED_FILE_DIR)/AltIcons/AppIcon-Dumbbell.png",
-				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
-			);
-			name = "Register Alternate App Icons";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "bash \"$SRCROOT/tools/alt-icons/register-alt-icons.sh\"\n";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */

@@ -9,7 +9,6 @@ struct SettingsView: View {
     @State private var showExport = false
     @State private var showOnboarding = false
     @State private var showThemePicker = false
-    @State private var showIconPicker = false
     @State private var isImporting = false
     @State private var confirmClear = false
     @State private var confirmSample = false
@@ -42,7 +41,6 @@ struct SettingsView: View {
             .sheet(isPresented: $showExport) { ExportSheet() }
             .sheet(isPresented: $showOnboarding) { OnboardingView(playMode: true) }
             .sheet(isPresented: $showThemePicker) { ThemePickerView() }
-            .sheet(isPresented: $showIconPicker) { AppIconPickerView() }
             .confirmationDialog("确定清空全部记录？此操作不可撤销。", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("清空", role: .destructive) { store.clearAll() }
                 Button("取消", role: .cancel) {}
@@ -50,15 +48,6 @@ struct SettingsView: View {
             .confirmationDialog("载入示例数据会覆盖现有记录，确定继续？", isPresented: $confirmSample, titleVisibility: .visible) {
                 Button("覆盖并载入", role: .destructive) { store.loadSampleData() }
                 Button("取消", role: .cancel) {}
-            }
-            // App 图标切换失败（切换逻辑在 picker 收起后由 AppIconSwitcher 执行）
-            .alert("切换失败", isPresented: Binding(
-                get: { AppIconSwitcher.shared.errorMessage != nil },
-                set: { if !$0 { AppIconSwitcher.shared.errorMessage = nil } }
-            )) {
-                Button("好", role: .cancel) {}
-            } message: {
-                Text(AppIconSwitcher.shared.errorMessage ?? "")
             }
         }
     }
@@ -251,12 +240,6 @@ struct SettingsView: View {
                             .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 0.5))
                     }
                 }
-            }
-            rowDivider
-            navRow(symbol: "app.badge", title: "App 图标", tint: Theme.aqua, action: { showIconPicker = true }) {
-                Text(store.settings.appIcon.title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
             rowDivider
             unitPickerRow(symbol: "scalemass", title: "体重单位", selection: Binding<WeightUnit>(
