@@ -109,6 +109,9 @@ struct AppSettings: Codable, Hashable {
     var weightUnit: WeightUnit = .kilograms
     var lengthUnit: LengthUnit = .centimeters
 
+    /// 主题
+    var theme: AppTheme = .ocean
+
     /// 保存时一并写入「健康」
     var syncWriteToHealth: Bool = false
     /// 启动时尝试从「健康」拉取新数据

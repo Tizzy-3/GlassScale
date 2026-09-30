@@ -39,6 +39,7 @@ final class WeightStore {
         if !preview, let data = try? Data(contentsOf: Persistence.avatarURL) {
             avatarImage = UIImage(data: data)
         }
+        Theme.current = settings.theme
     }
 
     // MARK: - 派生数据
@@ -152,6 +153,7 @@ final class WeightStore {
 
     func updateSettings(_ settings: AppSettings) {
         self.settings = settings
+        Theme.current = settings.theme
         persist()
     }
 

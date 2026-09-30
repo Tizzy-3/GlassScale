@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var showProfileEditor = false
     @State private var showExport = false
     @State private var showOnboarding = false
+    @State private var showThemePicker = false
     @State private var isImporting = false
     @State private var confirmClear = false
     @State private var confirmSample = false
@@ -39,6 +40,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showProfileEditor) { ProfileEditorView() }
             .sheet(isPresented: $showExport) { ExportSheet() }
             .sheet(isPresented: $showOnboarding) { OnboardingView(playMode: true) }
+            .sheet(isPresented: $showThemePicker) { ThemePickerView() }
             .confirmationDialog("确定清空全部记录？此操作不可撤销。", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("清空", role: .destructive) { store.clearAll() }
                 Button("取消", role: .cancel) {}
@@ -229,6 +231,17 @@ struct SettingsView: View {
 
     private var preferenceCard: some View {
         card(title: "偏好设置", symbol: "gearshape") {
+            navRow(symbol: "paintpalette", title: "主题", tint: Theme.violet, action: { showThemePicker = true }) {
+                HStack(spacing: -6) {
+                    ForEach(store.settings.theme.swatches.indices, id: \.self) { i in
+                        Circle()
+                            .fill(store.settings.theme.swatches[i])
+                            .frame(width: 18, height: 18)
+                            .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 0.5))
+                    }
+                }
+            }
+            rowDivider
             unitPickerRow(symbol: "scalemass", title: "体重单位", selection: Binding<WeightUnit>(
                 get: { store.settings.weightUnit },
                 set: { store.settings.weightUnit = $0; store.updateSettings(store.settings) }

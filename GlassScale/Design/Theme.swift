@@ -1,11 +1,15 @@
 import SwiftUI
 
 enum Theme {
+    /// 当前主题。WeightStore 在启动和切换主题时同步，界面通过 `.id(theme)` 重建来换肤。
+    /// 对外仍暴露 aqua/violet/mint/coral 四个名字，调用方不用改。
+    static var current: AppTheme = .ocean
+
     // 品牌色
-    static let aqua = Color(red: 0.29, green: 0.72, blue: 0.98)
-    static let violet = Color(red: 0.58, green: 0.40, blue: 0.97)
-    static let mint = Color(red: 0.17, green: 0.85, blue: 0.66)
-    static let coral = Color(red: 0.98, green: 0.47, blue: 0.42)
+    static var aqua: Color { current.primary }
+    static var violet: Color { current.accent }
+    static var mint: Color { current.success }
+    static var coral: Color { current.danger }
 
     // 圆角
     static let heroCorner: CGFloat = 34
