@@ -6,6 +6,7 @@ struct AppIconPickerView: View {
     @Environment(WeightStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var errorMessage: String?
+    @State private var switchingName: String? = nil  // 正在切换中的 iconName（防重复点击）
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
 
@@ -46,17 +47,26 @@ struct AppIconPickerView: View {
 
     private func iconCell(_ choice: AppIconChoice) -> some View {
         let selected = store.settings.appIcon == choice
+        let switching = switchingName == choice.iconName
         return Button {
             apply(choice)
         } label: {
             VStack(spacing: 10) {
-                iconPreview(choice)
-                    .frame(width: 76, height: 76)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
+                ZStack {
+                    iconPreview(choice)
+                        .frame(width: 76, height: 76)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(.white.opacity(0.25), lineWidth: 0.5)
+                        )
+                    if switching {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(.white.opacity(0.25), lineWidth: 0.5)
-                    )
+                            .fill(.ultraThinMaterial)
+                            .frame(width: 76, height: 76)
+                        ProgressView()
+                    }
+                }
                 Text(choice.title)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
@@ -74,6 +84,7 @@ struct AppIconPickerView: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(switchingName != nil)
     }
 
     @ViewBuilder
@@ -114,19 +125,40 @@ struct AppIconPickerView: View {
 
     private func apply(_ choice: AppIconChoice) {
         guard store.settings.appIcon != choice else { return }
+        guard switchingName == nil else { return }  // 切换中，忽略重复点击
         guard UIApplication.shared.supportsAlternateIcons else {
             errorMessage = "当前设备不支持更换 App 图标"
             return
         }
+        switchingName = choice.iconName
+        applyWithRetry(choice, attempt: 0)
+    }
+
+    /// iOS 26 的 LSIconAlertManager 在 LaunchServices 尚未索引完新安装 App 的备选图标
+    /// 等情况下，会报 NSPOSIXErrorDomain Code 35 (EAGAIN)「资源暂时不可用」。
+    /// EAGAIN 本意即"稍后再试"，属瞬时性错误，按 0.5s / 1s / 2s / 4s 退避重试（最多 5 次）。
+    private func applyWithRetry(_ choice: AppIconChoice, attempt: Int) {
         // 系统会自动弹一次确认框
         UIApplication.shared.setAlternateIconName(choice.iconName) { error in
+            if let nsError = error as NSError?,
+               nsError.domain == NSPOSIXErrorDomain,
+               nsError.code == 35,  // EAGAIN
+               attempt < 4 {
+                let backoff: [Double] = [0.5, 1.0, 2.0, 4.0]
+                DispatchQueue.main.asyncAfter(deadline: .now() + backoff[attempt]) {
+                    self.applyWithRetry(choice, attempt: attempt + 1)
+                }
+                return
+            }
             DispatchQueue.main.async {
+                self.switchingName = nil
                 if let error {
-                    errorMessage = error.localizedDescription
+                    let nsError = error as NSError
+                    self.errorMessage = "\(error.localizedDescription)（\(nsError.domain) \(nsError.code)，已重试 \(attempt) 次）"
                 } else {
-                    var s = store.settings
+                    var s = self.store.settings
                     s.appIcon = choice
-                    store.updateSettings(s)
+                    self.store.updateSettings(s)
                 }
             }
         }
