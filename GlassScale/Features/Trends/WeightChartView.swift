@@ -107,7 +107,7 @@ struct WeightChartView: View {
 
             if let goal {
                 RuleMark(y: .value("目标", unit.value(forKg: goal.targetWeightKg)))
-                    .foregroundStyle(.white.opacity(0.42))
+                    .foregroundStyle(.secondary.opacity(0.5))
                     .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
                     .annotation(position: .top, alignment: .leading, spacing: 2) {
                         Text("目标 \(Fmt.weight(goal.targetWeightKg, unit))")
@@ -121,14 +121,14 @@ struct WeightChartView: View {
 
             if let selectedPoint {
                 RuleMark(x: .value("选中", selectedPoint.date, unit: .day))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(.secondary.opacity(0.4))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
 
                 PointMark(
                     x: .value("日期", selectedPoint.date, unit: .day),
                     y: .value("体重", unit.value(forKg: selectedPoint.kg))
                 )
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.aqua)
                 .symbolSize(70)
                 .annotation(position: .top, spacing: 8) {
                     readout(selectedPoint)
@@ -138,21 +138,21 @@ struct WeightChartView: View {
         .chartYScale(domain: yDomain)
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: axisStride)) { _ in
-                AxisGridLine().foregroundStyle(.white.opacity(0.07))
-                AxisTick().foregroundStyle(.white.opacity(0.2))
+                AxisGridLine().foregroundStyle(.secondary.opacity(0.12))
+                AxisTick().foregroundStyle(.secondary.opacity(0.35))
                 AxisValueLabel()
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(.secondary)
             }
         }
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 5)) { value in
-                AxisGridLine().foregroundStyle(.white.opacity(0.07))
+                AxisGridLine().foregroundStyle(.secondary.opacity(0.12))
                 AxisValueLabel {
                     if let v = value.as(Double.self) {
                         Text(Fmt.number(v, decimals: 0))
                             .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -198,6 +198,16 @@ struct DailyDeltaChart: View {
         }
     }
 
+    /// X 轴步长：按日期跨度均分约 5 个标签，避免柱子少、跨度大时标签挤成一团
+    private var xStrideDays: Int {
+        let span = Calendar.current.dateComponents(
+            [.day],
+            from: bars.first?.date ?? Date(),
+            to: bars.last?.date ?? Date()
+        ).day ?? 30
+        return max(1, span / 5)
+    }
+
     var body: some View {
         Chart(bars) { bar in
             BarMark(
@@ -208,10 +218,10 @@ struct DailyDeltaChart: View {
             .cornerRadius(2)
         }
         .chartXAxis {
-            AxisMarks(values: .stride(by: .day, count: max(1, bars.count / 5))) { _ in
+            AxisMarks(values: .stride(by: .day, count: xStrideDays)) { _ in
                 AxisValueLabel()
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(.secondary)
             }
         }
         .chartYAxis {
@@ -220,7 +230,7 @@ struct DailyDeltaChart: View {
                     if let v = value.as(Double.self) {
                         Text((v > 0 ? "+" : "") + Fmt.number(v, decimals: 1))
                             .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.55))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
