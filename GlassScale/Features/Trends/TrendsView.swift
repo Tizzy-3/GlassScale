@@ -29,6 +29,7 @@ struct TrendsView: View {
 
     @Environment(WeightStore.self) private var store
     @State private var range: Range = .threeMonths
+    @State private var showEntryEditor = false
     @Namespace private var segmentNamespace
 
     private var unit: WeightUnit { store.unit }
@@ -58,7 +59,8 @@ struct TrendsView: View {
                                 symbol: "chart.xyaxis.line",
                                 title: "数据还不够",
                                 message: "至少记录两天体重，这里就会出现趋势曲线。",
-                                actionTitle: "去记录"
+                                actionTitle: "去记录",
+                                action: { showEntryEditor = true }
                             )
                             .padding(.top, 60)
                         } else {
@@ -76,6 +78,7 @@ struct TrendsView: View {
             }
             .navigationTitle("趋势")
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showEntryEditor) { EntryEditorView(mode: .create) }
         }
     }
 

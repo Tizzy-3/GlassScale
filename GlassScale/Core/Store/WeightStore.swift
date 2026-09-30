@@ -167,15 +167,28 @@ final class WeightStore {
         guard let baseline = baselineKg else { return }
         let current = entry.weightKg
 
-        if let goal {
-            let reached = (baseline - current) * (baseline - goal.targetWeightKg) >= 0
-            if reached {
-                milestone = Milestone(
-                    kind: .goal,
-                    title: "达成目标",
-                    detail: "你现在是 \(Fmt.weight(current, unit))，已抵达 \(Fmt.weight(goal.targetWeightKg, unit))",
-                    symbol: "trophy.fill"
-                )
+        if let goal = goal {
+            let target = goal.targetWeightKg
+            // 只有真正越过目标线才算达成：减重目标要求当前 <= 目标，增重目标要求当前 >= 目标
+            // （之前用的乘积公式，只要朝目标方向动一下就误判为达成）
+            func reached(_ weight: Double) -> Bool {
+                if target < baseline { return weight <= target }
+                if target > baseline { return weight >= target }
+                return false
+            }
+            if reached(current) {
+                // 之前没达成过才庆祝，避免之后每记一次体重就弹一次
+                let wasReachedBefore = entries
+                    .filter { $0.id != entry.id }
+                    .contains { reached($0.weightKg) }
+                if !wasReachedBefore {
+                    milestone = Milestone(
+                        kind: .goal,
+                        title: "达成目标",
+                        detail: "你现在是 \(Fmt.weight(current, unit))，已抵达 \(Fmt.weight(target, unit))",
+                        symbol: "trophy.fill"
+                    )
+                }
                 return
             }
         }
