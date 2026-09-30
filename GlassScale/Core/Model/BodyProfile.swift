@@ -22,6 +22,8 @@ struct BodyProfile: Codable, Hashable {
     var heightCm: Double = 170
     var age: Int? = nil
     var sex: Sex = .unspecified
+    /// 昵称
+    var nickname: String = ""
     /// 引导页里填的初始体重，千克（用于计算减重进度）
     var baselineKg: Double? = nil
 

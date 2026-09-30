@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 struct SettingsView: View {
@@ -54,29 +55,37 @@ struct SettingsView: View {
     private var profileHeader: some View {
         GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 20) {
             VStack(spacing: 14) {
-                HStack(spacing: 16) {
-                    Image(systemName: "person.fill")
-                        .font(.title2)
-                        .foregroundStyle(Theme.aqua)
-                        .frame(width: 62, height: 62)
-                        .glassEffect(.regular, in: .circle)
+                Button { showProfileEditor = true } {
+                    HStack(spacing: 16) {
+                        avatarView(size: 62)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("当前体重")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text(store.stats.currentKg.map { Fmt.weight($0, unit) } ?? "—")
-                                .font(.system(size: 34, weight: .bold, design: .rounded))
-                                .contentTransition(.numericText())
-                            Text(unit.symbol)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(store.profile.nickname.isEmpty ? "轻点设置昵称" : store.profile.nickname)
+                                .font(.headline)
+                                .foregroundStyle(store.profile.nickname.isEmpty ? .secondary : .primary)
+                                .lineLimit(1)
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("当前")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(store.stats.currentKg.map { Fmt.weight($0, unit) } ?? "—")
+                                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                                    .contentTransition(.numericText())
+                                Text(unit.symbol)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                    }
 
-                    Spacer()
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
 
                 HStack(spacing: 0) {
                     miniStat(value: "\(store.stats.streakDays)", label: "连续天数")
@@ -85,6 +94,26 @@ struct SettingsView: View {
                     Divider().frame(height: 30)
                     miniStat(value: store.stats.bmi.map { Fmt.number($0, decimals: 1) } ?? "—", label: "BMI")
                 }
+            }
+        }
+    }
+
+    /// 有头像显示头像，没有显示占位图标
+    private func avatarView(size: CGFloat) -> some View {
+        Group {
+            if let avatar = store.avatarImage {
+                Image(uiImage: avatar)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 1))
+            } else {
+                Image(systemName: "person.fill")
+                    .font(.title2)
+                    .foregroundStyle(Theme.aqua)
+                    .frame(width: size, height: size)
+                    .glassEffect(.regular, in: .circle)
             }
         }
     }
@@ -400,6 +429,8 @@ struct ProfileEditorView: View {
     @State private var age: Int = 28
     @State private var sex: BodyProfile.Sex = .unspecified
     @State private var baselineText = ""
+    @State private var nickname = ""
+    @State private var avatarItem: PhotosPickerItem?
     @State private var didLoad = false
 
     var body: some View {
@@ -409,6 +440,56 @@ struct ProfileEditorView: View {
 
                 ScrollView {
                     VStack(spacing: 18) {
+                        GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 20) {
+                            VStack(spacing: 14) {
+                                HStack(spacing: 16) {
+                                    Group {
+                                        if let avatar = store.avatarImage {
+                                            Image(uiImage: avatar)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 56, height: 56)
+                                                .clipShape(Circle())
+                                                .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 1))
+                                        } else {
+                                            Image(systemName: "person.fill")
+                                                .font(.title3)
+                                                .foregroundStyle(Theme.aqua)
+                                                .frame(width: 56, height: 56)
+                                                .glassEffect(.regular, in: .circle)
+                                        }
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        PhotosPicker(selection: $avatarItem, matching: .images) {
+                                            Label("更换头像", systemImage: "photo")
+                                                .font(.subheadline.weight(.medium))
+                                        }
+                                        .buttonStyle(.glass)
+                                        .buttonBorderShape(.capsule)
+
+                                        if store.avatarImage != nil {
+                                            Button("移除头像", role: .destructive) {
+                                                store.removeAvatar()
+                                            }
+                                            .font(.caption)
+                                        }
+                                    }
+
+                                    Spacer()
+                                }
+
+                                Divider()
+
+                                HStack {
+                                    Text("昵称")
+                                        .font(.subheadline.weight(.medium))
+                                    TextField("给自己起个名字", text: $nickname)
+                                        .multilineTextAlignment(.trailing)
+                                }
+                            }
+                        }
+
                         GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 20) {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack {
@@ -471,6 +552,16 @@ struct ProfileEditorView: View {
                 }
             }
             .onAppear(perform: load)
+            .onChange(of: avatarItem) { _, newItem in
+                guard let newItem else { return }
+                Task {
+                    if let data = try? await newItem.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        store.saveAvatar(image)
+                    }
+                    avatarItem = nil
+                }
+            }
         }
         .presentationDetents([.large])
     }
@@ -481,6 +572,7 @@ struct ProfileEditorView: View {
         heightCm = store.profile.heightCm
         age = store.profile.age ?? 28
         sex = store.profile.sex
+        nickname = store.profile.nickname
         baselineText = store.baselineKg.map { Fmt.number(store.unit.value(forKg: $0), decimals: 1) } ?? ""
     }
 
@@ -489,6 +581,7 @@ struct ProfileEditorView: View {
         profile.heightCm = heightCm
         profile.age = age
         profile.sex = sex
+        profile.nickname = String(nickname.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
         if let v = Double(baselineText.replacingOccurrences(of: ",", with: ".")), v > 20, v < 400 {
             profile.baselineKg = store.unit.kilograms(for: v)
         } else {

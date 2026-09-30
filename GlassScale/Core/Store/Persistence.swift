@@ -32,6 +32,9 @@ enum Persistence {
 
     static var fileURL: URL { folderURL.appendingPathComponent(fileName) }
 
+    /// 头像单独存一个文件，不进 JSON（图片 base64 会撑大 store.json）
+    static var avatarURL: URL { folderURL.appendingPathComponent("avatar.jpg") }
+
     static func load() -> Payload? {
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         let decoder = JSONDecoder()
@@ -49,5 +52,6 @@ enum Persistence {
 
     static func wipe() {
         try? FileManager.default.removeItem(at: fileURL)
+        try? FileManager.default.removeItem(at: avatarURL)
     }
 }

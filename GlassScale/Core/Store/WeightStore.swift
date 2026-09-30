@@ -20,6 +20,9 @@ final class WeightStore {
     /// 一次性提示（导入结果、错误等）
     var toast: String? = nil
 
+    /// 头像：存在 Application Support/GlassScale/avatar.jpg，内存里缓存一份
+    var avatarImage: UIImage? = nil
+
     let health = HealthKitManager()
 
     private var saveWorkItem: DispatchWorkItem?
@@ -32,6 +35,9 @@ final class WeightStore {
             profile = payload.profile
             goal = payload.goal
             settings = payload.settings
+        }
+        if !preview, let data = try? Data(contentsOf: Persistence.avatarURL) {
+            avatarImage = UIImage(data: data)
         }
     }
 
@@ -127,6 +133,21 @@ final class WeightStore {
     func updateProfile(_ profile: BodyProfile) {
         self.profile = profile
         persist()
+    }
+
+    // MARK: - 头像
+
+    /// 收到的原图先压到 512px 再存 JPEG，避免 store 目录膨胀
+    func saveAvatar(_ image: UIImage) {
+        let scaled = image.scaledDown(to: 512)
+        guard let data = scaled.jpegData(compressionQuality: 0.8) else { return }
+        try? data.write(to: Persistence.avatarURL, options: .atomic)
+        avatarImage = scaled
+    }
+
+    func removeAvatar() {
+        try? FileManager.default.removeItem(at: Persistence.avatarURL)
+        avatarImage = nil
     }
 
     func updateSettings(_ settings: AppSettings) {
@@ -285,5 +306,17 @@ extension Double {
     func rounded(toPlaces places: Int) -> Double {
         let divisor = pow(10.0, Double(places))
         return (self * divisor).rounded() / divisor
+    }
+}
+
+private extension UIImage {
+    /// 等比压缩到最长边不超过 maxDimension
+    func scaledDown(to maxDimension: CGFloat) -> UIImage {
+        let maxSide = max(size.width, size.height)
+        guard maxSide > maxDimension, maxSide > 0 else { return self }
+        let scale = maxDimension / maxSide
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in draw(in: CGRect(origin: .zero, size: newSize)) }
     }
 }
