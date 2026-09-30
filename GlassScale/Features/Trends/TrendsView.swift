@@ -176,7 +176,7 @@ struct TrendsView: View {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
 
-        func windowAvg(daysAgo range: Range<Int>) -> (Double, Int)? {
+        func windowAvg(daysAgo range: Swift.Range<Int>) -> (Double, Int)? {
             let days = Set(range.compactMap { cal.date(byAdding: .day, value: -$0, to: today) })
             let values = store.entries
                 .filter { days.contains(cal.startOfDay(for: $0.date)) }
