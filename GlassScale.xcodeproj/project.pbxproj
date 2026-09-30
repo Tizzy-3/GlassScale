@@ -48,9 +48,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1A00000000000000000000B2 /* Build configuration list for PBXNativeTarget "GlassScale" */;
 			buildPhases = (
+				2A00000000000000000000C1 /* Decode Alternate App Icons */,
 				1A00000000000000000000A7 /* Sources */,
 				1A00000000000000000000A8 /* Frameworks */,
 				1A00000000000000000000A9 /* Resources */,
+				2A00000000000000000000C2 /* Register Alternate App Icons */,
 			);
 			buildRules = (
 			);
@@ -108,6 +110,37 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		2A00000000000000000000C1 /* Decode Alternate App Icons */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Decode Alternate App Icons";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "bash \"$SRCROOT/tools/alt-icons/decode-alt-icons.sh\"\n";
+		};
+		2A00000000000000000000C2 /* Register Alternate App Icons */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Register Alternate App Icons";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nPLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\nBUDDY=/usr/libexec/PlistBuddy\n$BUDDY -c \"Add :CFBundleAlternateIcons dict\" \"$PLIST\" 2>/dev/null || true\nfor spec in \"Cat:AppIcon-Cat\" \"Dumbbell:AppIcon-Dumbbell\"; do\n  name=\"${spec%%:*}\"\n  file=\"${spec##*:}\"\n  $BUDDY -c \"Add :CFBundleAlternateIcons:$name dict\" \"$PLIST\" 2>/dev/null || true\n  $BUDDY -c \"Delete :CFBundleAlternateIcons:$name:CFBundleIconFiles\" \"$PLIST\" 2>/dev/null || true\n  $BUDDY -c \"Add :CFBundleAlternateIcons:$name:CFBundleIconFiles array\" \"$PLIST\"\n  $BUDDY -c \"Add :CFBundleAlternateIcons:$name:CFBundleIconFiles:0 string $file\" \"$PLIST\"\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1A00000000000000000000A7 /* Sources */ = {

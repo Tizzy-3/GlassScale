@@ -104,6 +104,37 @@ enum LengthUnit: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// 可切换的 App 图标（我的 → 偏好设置 → App 图标）。
+/// 备选图标在构建时由 tools/alt-icons 解码进包，并通过
+/// CFBundleAlternateIcons 注册，切换走 UIApplication.setAlternateIconName。
+enum AppIconChoice: String, Codable, CaseIterable, Identifiable {
+    case `default`
+    case cat
+    case dumbbell
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .default: return "默认"
+        case .cat: return "胖猫量腰"
+        case .dumbbell: return "举铁团子"
+        }
+    }
+
+    /// 传给 setAlternateIconName 的名字；默认图标传 nil。
+    var iconName: String? {
+        switch self {
+        case .default: return nil
+        case .cat: return "AppIcon-Cat"
+        case .dumbbell: return "AppIcon-Dumbbell"
+        }
+    }
+
+    /// 包内预览图资源名（不带扩展名）；默认图标没有内置预览图。
+    var previewResourceName: String? { iconName }
+}
+
 /// 用户偏好。
 struct AppSettings: Codable, Hashable {
     var weightUnit: WeightUnit = .kilograms
@@ -111,6 +142,9 @@ struct AppSettings: Codable, Hashable {
 
     /// 主题
     var theme: AppTheme = .ocean
+
+    /// App 图标
+    var appIcon: AppIconChoice = .default
 
     /// 保存时一并写入「健康」
     var syncWriteToHealth: Bool = false
@@ -120,6 +154,27 @@ struct AppSettings: Codable, Hashable {
     var hasCompletedOnboarding: Bool = false
     /// 首页是否显示浮动操作按钮
     var showsDemoData: Bool = true
+
+    // 手写解码：老版本 store.json 里没有 appIcon 等新字段，用 decodeIfPresent 保证升级不丢数据。
+    private enum CodingKeys: String, CodingKey {
+        case weightUnit, lengthUnit, theme, appIcon
+        case syncWriteToHealth, syncReadFromHealth
+        case hasCompletedOnboarding, showsDemoData
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        weightUnit = try c.decodeIfPresent(WeightUnit.self, forKey: .weightUnit) ?? .kilograms
+        lengthUnit = try c.decodeIfPresent(LengthUnit.self, forKey: .lengthUnit) ?? .centimeters
+        theme = try c.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .ocean
+        appIcon = try c.decodeIfPresent(AppIconChoice.self, forKey: .appIcon) ?? .default
+        syncWriteToHealth = try c.decodeIfPresent(Bool.self, forKey: .syncWriteToHealth) ?? false
+        syncReadFromHealth = try c.decodeIfPresent(Bool.self, forKey: .syncReadFromHealth) ?? false
+        hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
+        showsDemoData = try c.decodeIfPresent(Bool.self, forKey: .showsDemoData) ?? true
+    }
 }
 
 // MARK: - 格式化
