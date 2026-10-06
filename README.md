@@ -1,4 +1,4 @@
-# 琉璃称 GlassScale
+# 享瘦 GlassScale
 
 一个 **iOS 26 液态玻璃（Liquid Glass）** 风格的体重管理记录 App。
 纯本地、零第三方依赖、无账号、无网络请求。
