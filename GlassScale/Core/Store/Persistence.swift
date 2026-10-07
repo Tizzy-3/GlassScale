@@ -9,6 +9,46 @@ enum Persistence {
         var profile: BodyProfile = BodyProfile()
         var goal: WeightGoal? = nil
         var settings: AppSettings = AppSettings()
+        /// 喝水记录（后加字段，老版本 JSON 里没有）
+        var waterEntries: [WaterEntry] = []
+
+        // 手写编解码：老版本 store.json 里没有 waterEntries 等新字段，
+        // 用 decodeIfPresent 保证升级不丢数据。
+        private enum CodingKeys: String, CodingKey {
+            case entries, profile, goal, settings, waterEntries
+        }
+
+        init(
+            entries: [WeightEntry] = [],
+            profile: BodyProfile = BodyProfile(),
+            goal: WeightGoal? = nil,
+            settings: AppSettings = AppSettings(),
+            waterEntries: [WaterEntry] = []
+        ) {
+            self.entries = entries
+            self.profile = profile
+            self.goal = goal
+            self.settings = settings
+            self.waterEntries = waterEntries
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            entries = try c.decodeIfPresent([WeightEntry].self, forKey: .entries) ?? []
+            profile = try c.decodeIfPresent(BodyProfile.self, forKey: .profile) ?? BodyProfile()
+            goal = try c.decodeIfPresent(WeightGoal.self, forKey: .goal)
+            settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
+            waterEntries = try c.decodeIfPresent([WaterEntry].self, forKey: .waterEntries) ?? []
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(entries, forKey: .entries)
+            try c.encode(profile, forKey: .profile)
+            try c.encodeIfPresent(goal, forKey: .goal)
+            try c.encode(settings, forKey: .settings)
+            try c.encode(waterEntries, forKey: .waterEntries)
+        }
     }
 
     private static let fileName = "store.json"

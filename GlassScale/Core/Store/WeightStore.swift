@@ -15,6 +15,9 @@ final class WeightStore {
     var goal: WeightGoal? = nil
     var settings: AppSettings = AppSettings()
 
+    /// 喝水记录，始终按时间升序
+    private(set) var waterEntries: [WaterEntry] = []
+
     /// 需要弹出的里程碑提示，由视图消费后调用 `consumeMilestone()` 清空
     var milestone: Milestone? = nil
     /// 一次性提示（导入结果、错误等）
@@ -35,6 +38,7 @@ final class WeightStore {
             profile = payload.profile
             goal = payload.goal
             settings = payload.settings
+            waterEntries = payload.waterEntries.sorted { $0.date < $1.date }
         }
         if !preview, let data = try? Data(contentsOf: Persistence.avatarURL) {
             avatarImage = UIImage(data: data)
@@ -72,6 +76,53 @@ final class WeightStore {
     }
 
     var isEmpty: Bool { entries.isEmpty }
+
+    // MARK: - 喝水
+
+    /// 今天的喝水记录（按时间升序）
+    var todayWaterEntries: [WaterEntry] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return waterEntries.filter { $0.dayKey == today }
+    }
+
+    /// 今日已喝水量（毫升）
+    var todayWaterMl: Int { todayWaterEntries.reduce(0) { $0 + $1.ml } }
+
+    /// 记一笔喝水。刚好达标时弹一次庆祝。
+    func logWater(ml: Int) {
+        guard ml > 0 else { return }
+        let wasBelowGoal = todayWaterMl < settings.waterGoalMl
+        waterEntries.append(WaterEntry(date: Date(), ml: ml))
+        persist()
+        if wasBelowGoal && todayWaterMl >= settings.waterGoalMl {
+            toast = "💧 今日喝水目标达成，继续保持！"
+        }
+    }
+
+    /// 撤销今日最后一笔喝水记录（点错了用）
+    func undoLastWater() {
+        guard let last = todayWaterEntries.max(by: { $0.date < $1.date }) else { return }
+        waterEntries.removeAll { $0.id == last.id }
+        persist()
+    }
+
+    /// 设置每日喝水目标（毫升），限制在 500…6000
+    func setWaterGoalMl(_ ml: Int) {
+        var s = settings
+        s.waterGoalMl = min(6000, max(500, ml))
+        updateSettings(s)
+    }
+
+    /// 最近 n 天（含今天）每天的喝水量，供首页卡片画小统计条
+    func waterMlByDay(lastDays: Int = 7) -> [(date: Date, ml: Int)] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        return (0..<lastDays).reversed().map { offset in
+            let day = cal.date(byAdding: .day, value: -offset, to: today) ?? today
+            let ml = waterEntries.filter { $0.dayKey == day }.reduce(0) { $0 + $1.ml }
+            return (day, ml)
+        }
+    }
 
     // MARK: - 增删改
 
@@ -151,6 +202,7 @@ final class WeightStore {
         profile = payload.profile
         goal = payload.goal
         settings = payload.settings
+        waterEntries = payload.waterEntries.sorted { $0.date < $1.date }
         Theme.current = settings.theme
         milestone = nil
         persist()
@@ -268,6 +320,7 @@ final class WeightStore {
 
     func clearAll() {
         entries = []
+        waterEntries = []
         milestone = nil
         persist()
     }
@@ -283,7 +336,8 @@ final class WeightStore {
                     entries: self.entries,
                     profile: self.profile,
                     goal: self.goal,
-                    settings: self.settings
+                    settings: self.settings,
+                    waterEntries: self.waterEntries
                 )
             )
         }
@@ -298,7 +352,8 @@ final class WeightStore {
                 entries: entries,
                 profile: profile,
                 goal: goal,
-                settings: settings
+                settings: settings,
+                waterEntries: waterEntries
             )
         )
     }

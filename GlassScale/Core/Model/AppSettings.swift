@@ -121,11 +121,15 @@ struct AppSettings: Codable, Hashable {
     /// 首页是否显示浮动操作按钮
     var showsDemoData: Bool = true
 
+    /// 每日喝水目标，毫升
+    var waterGoalMl: Int = 2000
+
     // 手写解码：老版本 store.json 里没有 theme 等新字段，用 decodeIfPresent 保证升级不丢数据。
     private enum CodingKeys: String, CodingKey {
         case weightUnit, lengthUnit, theme
         case syncWriteToHealth, syncReadFromHealth
         case hasCompletedOnboarding, showsDemoData
+        case waterGoalMl
     }
 
     init() {}
@@ -139,6 +143,7 @@ struct AppSettings: Codable, Hashable {
         syncReadFromHealth = try c.decodeIfPresent(Bool.self, forKey: .syncReadFromHealth) ?? false
         hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
         showsDemoData = try c.decodeIfPresent(Bool.self, forKey: .showsDemoData) ?? true
+        waterGoalMl = try c.decodeIfPresent(Int.self, forKey: .waterGoalMl) ?? 2000
     }
 }
 

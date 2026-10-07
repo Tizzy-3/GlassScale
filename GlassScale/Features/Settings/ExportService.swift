@@ -57,7 +57,8 @@ enum ExportService {
             entries: store.entries,
             profile: store.profile,
             goal: store.goal,
-            settings: store.settings
+            settings: store.settings,
+            waterEntries: store.waterEntries
         )
         guard let data = try? encoder.encode(payload),
               let text = String(data: data, encoding: .utf8) else { return nil }

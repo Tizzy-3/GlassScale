@@ -38,6 +38,7 @@ struct DashboardView: View {
                             )
 
                             statGrid
+                            WaterCard()
                             trendCard
                             recentCard
                         }
