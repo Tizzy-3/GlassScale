@@ -239,6 +239,81 @@ run("persistence keeps last-good backup and preserves corrupt original on recove
     try expect(archiveFound, "explicit recovery archives corrupt original for inspection")
 }
 
+run("missing primary preserves valid backup through repeated saves until explicit recovery") {
+    let fm = FileManager.default
+    let folder = fm.temporaryDirectory.appendingPathComponent("GlassScale-missing-\(UUID().uuidString)", isDirectory: true)
+    try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: folder) }
+    let url = folder.appendingPathComponent("store.json")
+    let original = Persistence.Payload(entries: [entry(70)], waterEntries: [WaterEntry(date: date(0), ml: 350)])
+    try Persistence.save(original, to: url)
+    let backupURL = Persistence.backupURL(for: url)
+    let backupBytes = try Data(contentsOf: backupURL)
+    try fm.removeItem(at: url)
+
+    var recoveryRequired = false
+    do { _ = try Persistence.load(from: url) }
+    catch Persistence.RecoveryError.missingPrimary { recoveryRequired = true }
+    try expect(recoveryRequired, "missing primary with backup is a recovery state, not first launch")
+    let backup = try Persistence.loadBackup(for: url)
+    try expect(backup?.entries == original.entries && backup?.waterEntries == original.waterEntries,
+               "remaining backup still contains both kinds of history")
+    for attempt in 1...2 {
+        var saveRejected = false
+        do { try Persistence.save(Persistence.Payload(), to: url) }
+        catch Persistence.RecoveryError.missingPrimary { saveRejected = true }
+        try expect(saveRejected, "ordinary save \(attempt) cannot silently rebuild empty primary")
+        try expect(!fm.fileExists(atPath: url.path), "rejected save \(attempt) leaves primary absent")
+        let remainingBytes = try Data(contentsOf: backupURL)
+        try expect(remainingBytes == backupBytes, "ordinary save \(attempt) preserves only remaining backup bytes")
+    }
+
+    try Persistence.save(backup!, to: url, allowReplacingUnreadable: true)
+    let restored = try Persistence.load(from: url)
+    try expect(restored?.entries == original.entries && restored?.waterEntries == original.waterEntries,
+               "explicit backup recovery recreates weight and water history")
+    let retainedBackupBytes = try Data(contentsOf: backupURL)
+    try expect(retainedBackupBytes == backupBytes, "explicit recovery preserves source backup")
+    try Persistence.save(original, to: url)
+    let savedAgain = try Persistence.load(from: url)
+    try expect(savedAgain?.entries == original.entries, "ordinary saves resume after explicit recovery")
+}
+
+run("missing primary with invalid backup still requires recovery and preserves evidence") {
+    let fm = FileManager.default
+    let folder = fm.temporaryDirectory.appendingPathComponent("GlassScale-invalid-backup-\(UUID().uuidString)", isDirectory: true)
+    try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: folder) }
+    let url = folder.appendingPathComponent("store.json")
+    let backupURL = Persistence.backupURL(for: url)
+    let corrupt = Data("{unreadable remaining backup".utf8)
+    try corrupt.write(to: backupURL)
+    var recoveryRequired = false
+    do { _ = try Persistence.load(from: url) }
+    catch Persistence.RecoveryError.missingPrimary { recoveryRequired = true }
+    try expect(recoveryRequired, "unreadable backup also prevents treating missing primary as new installation")
+    var backupRejected = false
+    do { _ = try Persistence.loadBackup(for: url) }
+    catch { backupRejected = true }
+    try expect(backupRejected, "invalid automatic backup is reported as unreadable")
+    for attempt in 1...2 {
+        var saveRejected = false
+        do { try Persistence.save(Persistence.Payload(), to: url) }
+        catch Persistence.RecoveryError.missingPrimary { saveRejected = true }
+        try expect(saveRejected && !fm.fileExists(atPath: url.path),
+                   "ordinary save \(attempt) cannot replace missing primary / invalid backup state")
+        let remainingBytes = try Data(contentsOf: backupURL)
+        try expect(remainingBytes == corrupt, "ordinary save \(attempt) preserves invalid backup for inspection")
+    }
+    let externalBackup = Persistence.Payload(entries: [entry(69)], waterEntries: [WaterEntry(date: date(-1), ml: 500)])
+    try Persistence.save(externalBackup, to: url, allowReplacingUnreadable: true)
+    let recovered = try Persistence.load(from: url)
+    try expect(recovered?.entries == externalBackup.entries && recovered?.waterEntries == externalBackup.waterEntries,
+               "explicit external-file recovery works when automatic backup is invalid")
+    let retainedEvidence = try Data(contentsOf: backupURL)
+    try expect(retainedEvidence == corrupt, "external recovery retains unreadable backup evidence")
+}
+
 run("persistence reports storage failure and cannot replace good data with invalid JSON") {
     let fm = FileManager.default
     let folder = fm.temporaryDirectory.appendingPathComponent("GlassScale-errors-\(UUID().uuidString)", isDirectory: true)

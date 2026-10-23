@@ -4,6 +4,12 @@ import Foundation
 ///
 /// 纯本地存储：没有账号、没有网络、没有第三方依赖。
 enum Persistence {
+    enum RecoveryError: LocalizedError {
+        case missingPrimary
+        var errorDescription: String? {
+            "主数据文件缺失，但检测到自动备份。请先恢复备份，避免覆盖历史数据。"
+        }
+    }
     struct Payload: Codable {
         var entries: [WeightEntry] = []
         var profile: BodyProfile = BodyProfile()
@@ -66,7 +72,13 @@ enum Persistence {
     static var avatarURL: URL { folderURL.appendingPathComponent("avatar.jpg") }
 
     static func load(from url: URL = fileURL) throws -> Payload? {
-        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            let backup = backupURL(for: url)
+            if backup != url, FileManager.default.fileExists(atPath: backup.path) {
+                throw RecoveryError.missingPrimary
+            }
+            return nil
+        }
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -88,6 +100,11 @@ enum Persistence {
         let data = try encoder.encode(payload)
         let folder = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: url.path),
+           FileManager.default.fileExists(atPath: backupURL(for: url).path),
+           !allowReplacingUnreadable {
+            throw RecoveryError.missingPrimary
+        }
         if FileManager.default.fileExists(atPath: url.path) {
             do {
                 _ = try load(from: url)
