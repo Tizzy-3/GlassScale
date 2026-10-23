@@ -13,6 +13,9 @@ struct SettingsView: View {
     @State private var isImporting = false
     @State private var confirmClear = false
     @State private var confirmSample = false
+    @State private var showReminders = false
+    @State private var showWaterCups = false
+    @State private var confirmRecovery = false
 
     private var unit: WeightUnit { store.unit }
 
@@ -43,6 +46,12 @@ struct SettingsView: View {
             .sheet(isPresented: $showImport) { ImportSheet() }
             .sheet(isPresented: $showOnboarding) { OnboardingView(playMode: true) }
             .sheet(isPresented: $showThemePicker) { ThemePickerView() }
+            .sheet(isPresented: $showReminders) { ReminderSettingsView() }
+            .sheet(isPresented: $showWaterCups) { WaterCupSettingsView() }
+            .confirmationDialog("恢复最近自动备份？当前数据会先保留为备份文件。", isPresented: $confirmRecovery, titleVisibility: .visible) {
+                Button("恢复自动备份") { store.restoreAutomaticBackup() }
+                Button("取消", role: .cancel) {}
+            }
             .confirmationDialog("确定清空全部记录？此操作不可撤销。", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("清空", role: .destructive) { store.clearAll() }
                 Button("取消", role: .cancel) {}
@@ -233,6 +242,17 @@ struct SettingsView: View {
 
     private var preferenceCard: some View {
         card(title: "偏好设置", symbol: "gearshape") {
+            navRow(symbol: "bell", title: "称重与喝水提醒", action: { showReminders = true }) { EmptyView() }
+            rowDivider
+            navRow(symbol: "cup.and.saucer", title: "常用杯量", action: { showWaterCups = true }) { EmptyView() }
+            rowDivider
+            unitPickerRow(symbol: "calendar", title: "每日统计取值", selection: Binding<DailyWeightPolicy>(
+                get: { store.settings.dailyWeightPolicy },
+                set: { value in var s = store.settings; s.dailyWeightPolicy = value; store.updateSettings(s) }
+            ), options: DailyWeightPolicy.allCases, label: \.title)
+            Text("同一天可保留多条体重；每日统计和趋势按此选取，每天只计算一次。")
+                .font(.caption).foregroundStyle(.secondary).padding(12)
+            rowDivider
             navRow(symbol: "paintpalette", title: "主题", tint: Theme.violet, action: { showThemePicker = true }) {
                 HStack(spacing: -6) {
                     ForEach(store.settings.theme.swatches.indices, id: \.self) { i in
@@ -288,6 +308,11 @@ struct SettingsView: View {
 
     private var dataCard: some View {
         card(title: "数据管理", symbol: "externaldrive") {
+            navRow(symbol: "clock.arrow.circlepath", title: "恢复自动备份", action: { confirmRecovery = true }) {
+                Text(store.hasRecoverableBackup ? "可恢复" : "暂无备份").font(.caption).foregroundStyle(.secondary)
+            }
+            .disabled(!store.hasRecoverableBackup)
+            rowDivider
             navRow(symbol: "square.and.arrow.up", title: "导出数据", tint: Theme.violet, action: { showExport = true }) {
                 Text("CSV / JSON")
                     .font(.caption)
@@ -408,32 +433,18 @@ struct SettingsView: View {
 
         do {
             let samples = try await store.health.fetchBodyMass(since: store.entries.first?.date)
-            let existing = Set(store.entries.compactMap(\.healthKitUUID))
-            let cal = Calendar.current
-            var byDay: [Date: WeightEntry] = [:]
-            for entry in store.entries { byDay[cal.startOfDay(for: entry.date)] = entry }
-
-            var added = 0
-            for sample in samples {
-                let uuid = sample.uuid
-                guard !existing.contains(uuid) else { continue }
-                let day = cal.startOfDay(for: sample.startDate)
-                // 一天内以「健康」里最晚的一条为准
-                if let old = byDay[day], old.source == .healthKit, old.date >= sample.startDate { continue }
-                if byDay[day] != nil, byDay[day]?.source == .manual { continue }
-
-                let entry = WeightEntry(
+            let incoming = samples.map { sample in
+                WeightEntry(
                     date: sample.startDate,
                     weightKg: sample.quantity.doubleValue(for: .gramUnit(with: .kilo)),
                     source: .healthKit,
-                    healthKitUUID: uuid
+                    healthKitUUID: sample.uuid
                 )
-                byDay[day] = entry
-                added += 1
             }
-
-            store.replaceAll(byDay.values.sorted { $0.date < $1.date })
-            store.toast = added > 0 ? "已从「健康」导入 \(added) 条记录" : "没有新的体重数据"
+            let result = store.importEntries(incoming)
+            if store.storageError == nil {
+                store.toast = result.added > 0 ? "已从「健康」导入 \(result.added) 条记录" : "没有新的体重数据"
+            }
         } catch {
             store.toast = "导入失败：\(error.localizedDescription)"
         }

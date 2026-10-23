@@ -9,7 +9,7 @@ struct WeightStats: Equatable {
     var delta7dKg: Double?
     /// 与 30 天前最近一条的差
     var delta30dKg: Double?
-    /// 最近 7 条记录的均值
+    /// 最近 7 个日历日内每日代表体重的均值；漏记的日子不计入。
     var average7Kg: Double?
     var average30Kg: Double?
     /// 线性回归得到的每周变化速度（kg / 周，负数表示在减）
@@ -58,11 +58,41 @@ struct WeightStats: Equatable {
 // MARK: - 统计计算
 
 enum StatsEngine {
-    /// `entries` 必须按时间升序。
-    static func compute(entries: [WeightEntry], profile: BodyProfile, now: Date = Date()) -> WeightStats {
-        guard !entries.isEmpty else { return .empty }
+    /// 每个日历日选择一条代表记录，按时间升序；未来记录暂不参与统计。
+    static func dailyEntries(
+        _ entries: [WeightEntry], policy: DailyWeightPolicy = .latest, now: Date = Date()
+    ) -> [WeightEntry] {
+        let cal = Calendar.current
+        let sorted = entries.filter { $0.date <= now }.sorted {
+            $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date
+        }
+        var daily: [Date: WeightEntry] = [:]
+        for entry in sorted {
+            let day = cal.startOfDay(for: entry.date)
+            guard let previous = daily[day] else {
+                daily[day] = entry
+                continue
+            }
+            switch policy {
+            case .latest: daily[day] = entry
+            case .earliest: break
+            case .lowest:
+                if entry.weightKg <= previous.weightKg { daily[day] = entry }
+            }
+        }
+        return daily.values.sorted { $0.date < $1.date }
+    }
 
-        let current = entries.last!
+    static func compute(
+        entries: [WeightEntry], profile: BodyProfile, now: Date = Date(),
+        policy: DailyWeightPolicy = .latest
+    ) -> WeightStats {
+        let entries = entries.filter { $0.date <= now }.sorted {
+            $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date
+        }
+        guard let current = entries.last else { return .empty }
+        let daily = dailyEntries(entries, policy: policy, now: now)
+
         var stats = WeightStats()
         stats.currentKg = current.weightKg
         stats.count = entries.count
@@ -72,30 +102,35 @@ enum StatsEngine {
             stats.deltaLastKg = current.weightKg - entries[entries.count - 2].weightKg
         }
 
-        stats.delta7dKg = delta(entries, days: 7, now: current.date)
-        stats.delta30dKg = delta(entries, days: 30, now: current.date)
+        stats.delta7dKg = delta(daily, days: 7, now: current.date, currentKg: current.weightKg)
+        stats.delta30dKg = delta(daily, days: 30, now: current.date, currentKg: current.weightKg)
 
-        stats.average7Kg = average(entries, count: 7)
-        stats.average30Kg = average(entries, count: 30)
-        stats.weeklyRateKg = weeklyRate(entries)
+        stats.average7Kg = calendarAverage(daily, days: 7, now: now)
+        stats.average30Kg = calendarAverage(daily, days: 30, now: now)
+        stats.weeklyRateKg = weeklyRate(daily)
         stats.bmi = profile.bmi(weightKg: current.weightKg)
         stats.streakDays = streak(entries, now: now)
         return stats
     }
 
     /// 与 N 天之前最近的一条记录比较
-    private static func delta(_ entries: [WeightEntry], days: Int, now: Date) -> Double? {
+    private static func delta(_ entries: [WeightEntry], days: Int, now: Date, currentKg: Double) -> Double? {
         let cal = Calendar.current
         guard let cutoff = cal.date(byAdding: .day, value: -days, to: now) else { return nil }
         let latest = entries.last!
         // 找到 cutoff 之前最近的一条
         let prior = entries.last { $0.date <= cutoff }
         guard let prior, prior.id != latest.id else { return nil }
-        return latest.weightKg - prior.weightKg
+        return currentKg - prior.weightKg
     }
 
-    private static func average(_ entries: [WeightEntry], count: Int) -> Double? {
-        let slice = entries.suffix(count)
+    /// 输入应为每日代表记录；窗口含今天和之前 days - 1 个日历日。
+    static func calendarAverage(_ entries: [WeightEntry], days: Int, now: Date) -> Double? {
+        guard days > 0,
+              let start = Calendar.current.date(
+                byAdding: .day, value: -(days - 1), to: Calendar.current.startOfDay(for: now)
+              ) else { return nil }
+        let slice = entries.filter { $0.date >= start && $0.date <= now }
         guard !slice.isEmpty else { return nil }
         return slice.reduce(0.0) { $0 + $1.weightKg } / Double(slice.count)
     }

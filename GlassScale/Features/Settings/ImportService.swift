@@ -238,8 +238,9 @@ struct ImportSheet: View {
     private func restoreBackup() {
         guard let payload = pendingBackup else { return }
         pendingBackup = nil
-        store.restore(from: payload)
-        store.toast = "已从备份恢复 \(payload.entries.count) 条记录"
+        if store.restore(from: payload) {
+            store.toast = "已从备份恢复 \(payload.entries.count) 条记录"
+        }
     }
 
     private func importRow(title: String, detail: String, symbol: String, tint: Color, trailing: String) -> some View {

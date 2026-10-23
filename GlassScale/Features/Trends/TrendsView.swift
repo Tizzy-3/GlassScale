@@ -37,14 +37,14 @@ struct TrendsView: View {
 
     private var entries: [WeightEntry] {
         guard let days = range.days,
-              let cutoff = Calendar.current.date(byAdding: .day, value: -(days - 1), to: Date()) else {
+              let cutoff = Calendar.current.date(byAdding: .day, value: -(days - 1), to: Calendar.current.startOfDay(for: Date())) else {
             return store.entries
         }
-        return store.entries.filter { $0.date >= cutoff }
+        return store.entries.filter { $0.date >= cutoff && $0.date <= Date() }
     }
 
     private var rangeStats: WeightStats {
-        StatsEngine.compute(entries: entries, profile: store.profile)
+        StatsEngine.compute(entries: entries, profile: store.profile, policy: store.settings.dailyWeightPolicy)
     }
 
     var body: some View {
@@ -144,11 +144,11 @@ struct TrendsView: View {
                     caption: "线性拟合"
                 )
                 StatTile(
-                    title: "区间均重",
+                    title: "近 30 日均重",
                     value: Fmt.weight(rangeStats.average30Kg, unit),
                     unitText: unit.symbol,
                     symbol: "equal.circle",
-                    caption: "最近 30 条均值"
+                    caption: "最近 30 天有记录日均值"
                 )
                 StatTile(
                     title: "最高 / 最低",
@@ -178,7 +178,7 @@ struct TrendsView: View {
 
         func windowAvg(daysAgo range: Swift.Range<Int>) -> (Double, Int)? {
             let days = Set(range.compactMap { cal.date(byAdding: .day, value: -$0, to: today) })
-            let values = store.entries
+            let values = StatsEngine.dailyEntries(store.entries, policy: store.settings.dailyWeightPolicy)
                 .filter { days.contains(cal.startOfDay(for: $0.date)) }
                 .map(\.weightKg)
             guard values.count >= 3 else { return nil }
@@ -214,11 +214,11 @@ struct TrendsView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Theme.deltaColor(cmp.delta))
                     }
-                    Text("近 7 天 \(Fmt.weight(cmp.recentAvg, unit)) \(unit.symbol)（\(cmp.recentCount) 条记录）· 前 7 天 \(Fmt.weight(cmp.prevAvg, unit)) \(unit.symbol)（\(cmp.prevCount) 条记录）")
+                    Text("近 7 天 \(Fmt.weight(cmp.recentAvg, unit)) \(unit.symbol)（\(cmp.recentCount) 天记录）· 前 7 天 \(Fmt.weight(cmp.prevAvg, unit)) \(unit.symbol)（\(cmp.prevCount) 天记录）")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("两个 7 天窗口各需至少 3 条记录")
+                    Text("两个 7 天窗口各需至少 3 天记录")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 80)

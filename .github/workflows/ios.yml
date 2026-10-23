@@ -3,7 +3,8 @@ name: Build unsigned IPA
 # push 到 main 分支或手动点 Run workflow 都会触发编译
 on:
   push:
-    branches: [main]
+    branches: [main, feature/daily-recording]
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -24,6 +25,9 @@ jobs:
             echo "❌ 需要 Xcode 26 或更高版本，当前只有 Xcode $VER"
             exit 1
           fi
+
+      - name: 验证记录、统计和备份回归
+        run: bash tests/run.sh
 
       - name: 生成占位 App 图标
         # 说明：二进制图标无法经 API 上传，这里用纯 Python 生成两张 1024x1024 占位图

@@ -124,12 +124,17 @@ struct AppSettings: Codable, Hashable {
     /// 每日喝水目标，毫升
     var waterGoalMl: Int = 2000
 
+    var dailyWeightPolicy: DailyWeightPolicy = .latest
+    var waterCupSizes: [Int] = [250, 500]
+    var reminders: ReminderSettings = ReminderSettings()
+
     // 手写解码：老版本 store.json 里没有 theme 等新字段，用 decodeIfPresent 保证升级不丢数据。
     private enum CodingKeys: String, CodingKey {
         case weightUnit, lengthUnit, theme
         case syncWriteToHealth, syncReadFromHealth
         case hasCompletedOnboarding, showsDemoData
         case waterGoalMl
+        case dailyWeightPolicy, waterCupSizes, reminders
     }
 
     init() {}
@@ -144,6 +149,11 @@ struct AppSettings: Codable, Hashable {
         hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
         showsDemoData = try c.decodeIfPresent(Bool.self, forKey: .showsDemoData) ?? true
         waterGoalMl = try c.decodeIfPresent(Int.self, forKey: .waterGoalMl) ?? 2000
+        dailyWeightPolicy = try c.decodeIfPresent(DailyWeightPolicy.self, forKey: .dailyWeightPolicy) ?? .latest
+        let cups = try c.decodeIfPresent([Int].self, forKey: .waterCupSizes) ?? [250, 500]
+        waterCupSizes = Array(NSOrderedSet(array: cups.filter { (1...10000).contains($0) }).array.compactMap { $0 as? Int }.prefix(4))
+        if waterCupSizes.isEmpty { waterCupSizes = [250, 500] }
+        reminders = try c.decodeIfPresent(ReminderSettings.self, forKey: .reminders) ?? ReminderSettings()
     }
 }
 

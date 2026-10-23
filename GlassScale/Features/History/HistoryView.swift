@@ -7,6 +7,8 @@ struct HistoryView: View {
     @State private var searchText = ""
     @State private var editing: WeightEntry?
     @State private var showEditor = false
+    @State private var showCalendar = false
+    @State private var showWaterHistory = false
     @State private var showGoalEditor = false
     @State private var showExport = false
     @State private var confirmClear = false
@@ -71,6 +73,8 @@ struct HistoryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button("日历与补录", systemImage: "calendar") { showCalendar = true }
+                        Button("喝水明细", systemImage: "drop") { showWaterHistory = true }
                         Button("设置目标", systemImage: "target") { showGoalEditor = true }
                         Button("导出数据", systemImage: "square.and.arrow.up") {
                             showExport = true
@@ -92,6 +96,8 @@ struct HistoryView: View {
             .sheet(isPresented: $showEditor) {
                 EntryEditorView(mode: .create)
             }
+            .sheet(isPresented: $showCalendar) { RecordingCalendarView() }
+            .sheet(isPresented: $showWaterHistory) { WaterHistoryView() }
             .sheet(item: $editing) { entry in
                 EntryEditorView(mode: .edit(entry))
             }

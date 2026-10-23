@@ -9,6 +9,7 @@ struct ChartPoint: Identifiable, Equatable {
 
 /// 体重趋势图。纯 Swift Charts，零依赖。
 struct WeightChartView: View {
+    @Environment(WeightStore.self) private var store
     let entries: [WeightEntry]
     let goal: WeightGoal?
     let unit: WeightUnit
@@ -17,20 +18,22 @@ struct WeightChartView: View {
 
     @State private var selectedDate: Date?
 
+    private var dailyEntries: [WeightEntry] {
+        StatsEngine.dailyEntries(entries, policy: store.settings.dailyWeightPolicy)
+    }
+
     private var points: [ChartPoint] {
-        entries.map { ChartPoint(date: $0.date, kg: $0.weightKg) }
+        dailyEntries.map { ChartPoint(date: $0.date, kg: $0.weightKg) }
     }
 
     /// 7 天滚动均值，用来抹掉每天的水分波动
     private var averagePoints: [ChartPoint] {
-        guard entries.count >= 3 else { return [] }
-        var result: [ChartPoint] = []
-        for i in entries.indices {
-            let window = entries[max(0, i - 6)...i]
-            let avg = window.reduce(0.0) { $0 + $1.weightKg } / Double(window.count)
-            result.append(ChartPoint(date: entries[i].date, kg: avg))
+        let daily = dailyEntries
+        guard daily.count >= 3 else { return [] }
+        return daily.compactMap { entry in
+            guard let average = StatsEngine.calendarAverage(daily, days: 7, now: entry.date) else { return nil }
+            return ChartPoint(date: entry.date, kg: average)
         }
-        return result
     }
 
     private var displayedValues: [Double] {

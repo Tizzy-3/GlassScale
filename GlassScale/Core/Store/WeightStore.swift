@@ -6,6 +6,7 @@ import SwiftUI
 ///
 /// 纯本地、单一 `Observable` 对象：改动 → 统计 → 落盘。
 @Observable
+@MainActor
 final class WeightStore {
 
     // MARK: - 数据
@@ -27,18 +28,24 @@ final class WeightStore {
     var avatarImage: UIImage? = nil
 
     let health = HealthKitManager()
+    let reminders = ReminderManager()
+    var storageError: String?
+    private var storageBlocked = false
+    /// 日期变化也触发界面读取，避免跨午夜仍展示昨天的数据。
+    var currentDay = Calendar.current.startOfDay(for: Date())
 
     private var saveWorkItem: DispatchWorkItem?
 
     // MARK: - 生命周期
 
     init(preview: Bool = false) {
-        if !preview, let payload = Persistence.load() {
-            entries = payload.entries.sorted { $0.date < $1.date }
-            profile = payload.profile
-            goal = payload.goal
-            settings = payload.settings
-            waterEntries = payload.waterEntries.sorted { $0.date < $1.date }
+        if !preview {
+            do {
+                if let payload = try Persistence.load() { apply(payload) }
+            } catch {
+                storageBlocked = true
+                storageError = "本机数据无法读取，原文件已保留。请从自动备份或文件备份恢复。\n\(error.localizedDescription)"
+            }
         }
         if !preview, let data = try? Data(contentsOf: Persistence.avatarURL) {
             avatarImage = UIImage(data: data)
@@ -51,7 +58,8 @@ final class WeightStore {
     var unit: WeightUnit { settings.weightUnit }
 
     var stats: WeightStats {
-        StatsEngine.compute(entries: entries, profile: profile)
+        _ = currentDay
+        return StatsEngine.compute(entries: entries, profile: profile, policy: settings.dailyWeightPolicy)
     }
 
     var baselineKg: Double? {
@@ -59,16 +67,17 @@ final class WeightStore {
     }
 
     var todayEntry: WeightEntry? {
+        _ = currentDay
         let today = Calendar.current.startOfDay(for: Date())
         return entries.last { $0.dayKey == today }
     }
 
     /// 最近 n 天（含今天）的记录
     func recentEntries(days: Int) -> [WeightEntry] {
-        guard let cutoff = Calendar.current.date(byAdding: .day, value: -(days - 1), to: Date()) else {
+        guard let cutoff = Calendar.current.date(byAdding: .day, value: -(days - 1), to: Calendar.current.startOfDay(for: Date())) else {
             return entries
         }
-        return entries.filter { $0.date >= cutoff }
+        return entries.filter { $0.date >= cutoff && $0.date <= Date() }
     }
 
     func entries(in range: ClosedRange<Date>) -> [WeightEntry] {
@@ -81,6 +90,7 @@ final class WeightStore {
 
     /// 今天的喝水记录（按时间升序）
     var todayWaterEntries: [WaterEntry] {
+        _ = currentDay
         let today = Calendar.current.startOfDay(for: Date())
         return waterEntries.filter { $0.dayKey == today }
     }
@@ -90,20 +100,47 @@ final class WeightStore {
 
     /// 记一笔喝水。刚好达标时弹一次庆祝。
     func logWater(ml: Int) {
-        guard ml > 0 else { return }
+        _ = saveWater(ml: ml, at: Date())
+    }
+
+    func waterEntries(on date: Date) -> [WaterEntry] {
+        waterEntries.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+
+    @discardableResult
+    func saveWater(ml: Int, at date: Date, id: UUID? = nil) -> Bool {
+        guard (1...10000).contains(ml), date <= Date() else { return false }
+        let previous = waterEntries
         let wasBelowGoal = todayWaterMl < settings.waterGoalMl
-        waterEntries.append(WaterEntry(date: Date(), ml: ml))
-        persist()
+        waterEntries = RecordOperations.upsertWater(WaterEntry(id: id ?? UUID(), date: date, ml: ml), in: waterEntries)
+        guard persistNow() else { waterEntries = previous; return false }
+        refreshReminders()
         if wasBelowGoal && todayWaterMl >= settings.waterGoalMl {
             toast = "💧 今日喝水目标达成，继续保持！"
         }
+        return true
+    }
+
+    func deleteWater(_ entry: WaterEntry) {
+        let previous = waterEntries
+        waterEntries.removeAll { $0.id == entry.id }
+        if !persistNow() { waterEntries = previous }
+        refreshReminders()
+    }
+
+    @discardableResult
+    func setWaterCupSizes(_ sizes: [Int]) -> Bool {
+        let unique = sizes.reduce(into: [Int]()) { if !$0.contains($1) { $0.append($1) } }
+        guard (1...4).contains(unique.count), unique.allSatisfy({ (1...10000).contains($0) }) else { return false }
+        var updated = settings
+        updated.waterCupSizes = unique
+        return updateSettings(updated)
     }
 
     /// 撤销今日最后一笔喝水记录（点错了用）
     func undoLastWater() {
         guard let last = todayWaterEntries.max(by: { $0.date < $1.date }) else { return }
-        waterEntries.removeAll { $0.id == last.id }
-        persist()
+        deleteWater(last)
     }
 
     /// 设置每日喝水目标（毫升），限制在 500…6000
@@ -126,39 +163,33 @@ final class WeightStore {
 
     // MARK: - 增删改
 
-    /// 新增或更新一条记录。同一天已有记录时按「覆盖当天」处理。
+    /// 仅按记录 ID 更新；同一天新增的早晚记录分别保留。
     @discardableResult
     func save(entry: WeightEntry, silently: Bool = false) -> WeightEntry? {
-        var stored = entry
-        let sameDay = entries.first { $0.id == entry.id }
-            ?? entries.first { $0.dayKey == entry.dayKey && $0.source == entry.source && entry.source == .manual }
-
-        if let sameDay {
-            stored.id = sameDay.id
-            stored.source = sameDay.source == .healthKit && entry.source == .manual ? .manual : entry.source
-            stored.healthKitUUID = sameDay.healthKitUUID
-            entries.removeAll { $0.id == sameDay.id }
-        }
-
-        entries.append(stored)
-        sortEntries()
+        let previous = entries
+        entries = RecordOperations.upsertWeight(entry, in: entries)
+        guard persistNow() else { entries = previous; return nil }
 
         if !silently {
-            checkMilestones(for: stored)
+            checkMilestones(for: entry)
         }
-        persist()
-        return stored
+        refreshReminders()
+        return entry
     }
 
     func delete(_ entry: WeightEntry) {
+        let previous = entries
         entries.removeAll { $0.id == entry.id }
-        persist()
+        if !persistNow() { entries = previous }
+        refreshReminders()
     }
 
     func delete(at offsets: IndexSet, in group: [WeightEntry]) {
+        let previous = entries
         let ids = offsets.map { group[$0].id }
         entries.removeAll { ids.contains($0.id) }
-        persist()
+        if !persistNow() { entries = previous }
+        refreshReminders()
     }
 
     func replaceAll(_ newEntries: [WeightEntry]) {
@@ -169,34 +200,35 @@ final class WeightStore {
 
     // MARK: - 导入
 
-    /// 批量导入记录，自动去重（同 id / 同健康样本 / 同一天同来源）。
+    /// 批量导入按 ID、健康样本或完全相同测量去重，保留同日多条。
     /// 返回 (新增条数, 跳过条数)。
     @discardableResult
     func importEntries(_ newEntries: [WeightEntry]) -> (added: Int, skipped: Int) {
-        var added = 0
-        var skipped = 0
-        for entry in newEntries {
-            let dupe = entries.contains {
-                $0.id == entry.id
-                    || ($0.healthKitUUID != nil && $0.healthKitUUID == entry.healthKitUUID)
-                    || ($0.dayKey == entry.dayKey && $0.source == entry.source)
-            }
-            if dupe {
-                skipped += 1
-                continue
-            }
-            entries.append(entry)
-            added += 1
-        }
-        if added > 0 {
-            sortEntries()
-            persist()
-        }
-        return (added, skipped)
+        let previous = entries
+        let result = RecordOperations.mergeWeights(newEntries, into: entries)
+        entries = result.entries
+        if result.added > 0, !persistNow() { entries = previous; return (0, result.skipped) }
+        refreshReminders()
+        return (result.added, result.skipped)
     }
 
     /// 从完整备份恢复：覆盖记录、档案、目标与设置。
-    func restore(from payload: Persistence.Payload) {
+    @discardableResult
+    func restore(from payload: Persistence.Payload) -> Bool {
+        do {
+            try Persistence.save(payload, allowReplacingUnreadable: true)
+            apply(payload)
+            storageBlocked = false
+            storageError = nil
+            refreshReminders()
+            return true
+        } catch {
+            storageError = "恢复失败，原文件已保留：\(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private func apply(_ payload: Persistence.Payload) {
         entries = payload.entries
         sortEntries()
         profile = payload.profile
@@ -205,7 +237,17 @@ final class WeightStore {
         waterEntries = payload.waterEntries.sorted { $0.date < $1.date }
         Theme.current = settings.theme
         milestone = nil
-        persist()
+    }
+
+    var hasRecoverableBackup: Bool { (try? Persistence.loadBackup()) != nil }
+
+    func restoreAutomaticBackup() {
+        do {
+            guard let payload = try Persistence.loadBackup() else { return }
+            if restore(from: payload) { toast = "已恢复自动备份" }
+        } catch {
+            storageError = "自动备份无法读取：\(error.localizedDescription)"
+        }
     }
 
     private func sortEntries() {
@@ -243,10 +285,22 @@ final class WeightStore {
         avatarImage = nil
     }
 
-    func updateSettings(_ settings: AppSettings) {
+    @discardableResult
+    func updateSettings(_ settings: AppSettings) -> Bool {
+        let previous = self.settings
         self.settings = settings
         Theme.current = settings.theme
-        persist()
+        guard persistNow() else { self.settings = previous; Theme.current = previous.theme; return false }
+        refreshReminders()
+        return true
+    }
+
+    func refreshReminders() {
+        currentDay = Calendar.current.startOfDay(for: Date())
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await reminders.refresh(settings: settings.reminders, weightDates: entries.map(\.date), waterGoalReachedToday: todayWaterMl >= settings.waterGoalMl)
+        }
     }
 
     // MARK: - 里程碑
@@ -315,14 +369,17 @@ final class WeightStore {
         if goal == nil, let last = generator.last?.weightKg {
             goal = WeightGoal(targetWeightKg: (last - 8).rounded(), targetDate: Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date())
         }
-        persist()
+        if persistNow() { refreshReminders() }
     }
 
     func clearAll() {
+        let previousEntries = entries
+        let previousWater = waterEntries
         entries = []
         waterEntries = []
         milestone = nil
-        persist()
+        if persistNow() { refreshReminders() }
+        else { entries = previousEntries; waterEntries = previousWater }
     }
 
     // MARK: - 落盘
@@ -330,32 +387,35 @@ final class WeightStore {
     func persist() {
         saveWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            Persistence.save(
-                Persistence.Payload(
-                    entries: self.entries,
-                    profile: self.profile,
-                    goal: self.goal,
-                    settings: self.settings,
-                    waterEntries: self.waterEntries
-                )
-            )
+            MainActor.assumeIsolated { _ = self?.persistNow() }
         }
         saveWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
     }
 
-    func persistNow() {
+    @discardableResult
+    func persistNow() -> Bool {
         saveWorkItem?.cancel()
-        Persistence.save(
-            Persistence.Payload(
-                entries: entries,
-                profile: profile,
-                goal: goal,
-                settings: settings,
-                waterEntries: waterEntries
+        guard !storageBlocked else {
+            storageError = "数据文件无法读取，暂未写入任何更改。请先从自动备份或文件备份恢复。"
+            return false
+        }
+        do {
+            try Persistence.save(
+                Persistence.Payload(
+                    entries: entries,
+                    profile: profile,
+                    goal: goal,
+                    settings: settings,
+                    waterEntries: waterEntries
+                )
             )
-        )
+            storageError = nil
+            return true
+        } catch {
+            storageError = "保存失败，请重试或导出备份：\(error.localizedDescription)"
+            return false
+        }
     }
 }
 

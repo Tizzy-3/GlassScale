@@ -18,6 +18,7 @@ struct EntryEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let mode: Mode
+    var initialDate: Date? = nil
 
     @State private var weightText: String = ""
     @State private var date: Date = Date()
@@ -38,7 +39,7 @@ struct EntryEditorView: View {
     }
 
     private var isValid: Bool {
-        weightKg > 20 && weightKg < 400
+        weightKg > 20 && weightKg < 400 && date <= Date()
     }
 
     var body: some View {
@@ -50,6 +51,9 @@ struct EntryEditorView: View {
                     VStack(spacing: 18) {
                         weightDial
                         detailsCard
+                        if let error = store.storageError {
+                            Text(error).font(.caption).foregroundStyle(Theme.coral)
+                        }
                         if store.settings.syncWriteToHealth || store.health.status.isConnected {
                             syncCard
                         }
@@ -152,7 +156,7 @@ struct EntryEditorView: View {
     private var detailsCard: some View {
         GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
             VStack(spacing: 16) {
-                DatePicker(selection: $date, displayedComponents: [.date, .hourAndMinute]) {
+                DatePicker(selection: $date, in: ...Date(), displayedComponents: [.date, .hourAndMinute]) {
                     Label("时间", systemImage: "calendar")
                         .font(.subheadline.weight(.medium))
                 }
@@ -214,7 +218,7 @@ struct EntryEditorView: View {
         switch mode {
         case .create:
             base = store.todayEntry ?? store.entries.last
-            date = Date()
+            date = initialDate ?? Date()
         case .edit(let entry):
             base = entry
             date = entry.date
@@ -257,9 +261,9 @@ struct EntryEditorView: View {
             )
         }
 
-        store.save(entry: entry)
+        guard store.save(entry: entry) != nil else { return }
 
-        if syncToHealth || store.settings.syncWriteToHealth {
+        if syncToHealth {
             let value = entry.weightKg
             let when = entry.date
             Task {

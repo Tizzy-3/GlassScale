@@ -38,10 +38,10 @@ struct DashboardView: View {
                             )
 
                             statGrid
-                            WaterCard()
                             trendCard
                             recentCard
                         }
+                        WaterCard()
                     }
                     .padding(.horizontal, Theme.pagePadding)
                     .padding(.top, 8)

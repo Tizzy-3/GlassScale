@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 enum AppTab: Hashable {
@@ -12,6 +13,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: AppTab = .dashboard
     @State private var pendingQuickAdd = false
+    private let clock = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -50,9 +52,32 @@ struct RootView: View {
         .sheet(isPresented: $pendingQuickAdd) {
             EntryEditorView(mode: .create)
         }
+        .alert("数据存储提示", isPresented: Binding(
+            get: { store.storageError != nil },
+            set: { if !$0 { store.storageError = nil } }
+        )) {
+            Button("重试保存") { store.persistNow() }
+            if store.hasRecoverableBackup {
+                Button("恢复自动备份") { store.restoreAutomaticBackup() }
+            }
+            Button("稍后处理", role: .cancel) { store.storageError = nil }
+        } message: {
+            Text(store.storageError ?? "")
+        }
+        .task { store.refreshReminders() }
+        .onReceive(clock) { _ in
+            let day = Calendar.current.startOfDay(for: Date())
+            if store.currentDay != day { store.refreshReminders() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            store.refreshReminders()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 store.health.refreshStatus()
+                store.refreshReminders()
+            } else {
+                store.persistNow()
             }
         }
     }

@@ -5,6 +5,7 @@ struct WaterCard: View {
     @Environment(WeightStore.self) private var store
     @State private var showGoalSheet = false
     @State private var showCustomSheet = false
+    @State private var showHistory = false
 
     private var drunk: Int { store.todayWaterMl }
     private var goal: Int { store.settings.waterGoalMl }
@@ -24,7 +25,8 @@ struct WaterCard: View {
             }
         }
         .sheet(isPresented: $showGoalSheet) { WaterGoalSheet() }
-        .sheet(isPresented: $showCustomSheet) { WaterCustomSheet() }
+        .sheet(isPresented: $showCustomSheet) { WaterEntryEditorView() }
+        .sheet(isPresented: $showHistory) { WaterHistoryView() }
     }
 
     // MARK: - 标题行
@@ -100,16 +102,28 @@ struct WaterCard: View {
     // MARK: - 快捷记录
 
     private var quickButtons: some View {
-        HStack(spacing: 10) {
-            quickButton(title: "+250 ml", ml: 250)
-            quickButton(title: "+500 ml", ml: 500)
-            Button { showCustomSheet = true } label: {
-                Text("自定义")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+        VStack(spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 10)], spacing: 10) {
+                ForEach(store.settings.waterCupSizes, id: \.self) { ml in
+                    quickButton(title: "+\(ml) ml", ml: ml)
+                }
             }
-            .buttonStyle(.glass)
+            HStack(spacing: 10) {
+                Button { showCustomSheet = true } label: {
+                    Label("自定义", systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.glass)
+                Button { showHistory = true } label: {
+                    Label("明细与补录", systemImage: "list.bullet")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.glass)
+            }
         }
     }
 
@@ -204,53 +218,6 @@ struct WaterGoalSheet: View {
                 }
             }
             .onAppear { goal = store.settings.waterGoalMl }
-        }
-        .presentationDetents([.medium])
-    }
-}
-
-// MARK: - 自定义水量
-
-/// 自定义一次喝了多少。
-struct WaterCustomSheet: View {
-    @Environment(WeightStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
-    @State private var ml: Int = 300
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                AuroraBackground()
-
-                VStack(spacing: 18) {
-                    GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("这次喝了多少？")
-                                .font(.headline)
-                            Stepper("\(ml) ml", value: $ml, in: 50...2000, step: 50)
-                                .font(.title3.weight(.semibold))
-                            Text("一杯水约 250 ml，一瓶矿泉水约 500 ml。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer()
-                }
-                .padding(Theme.pagePadding)
-            }
-            .navigationTitle("记录喝水")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        store.logWater(ml: ml)
-                        dismiss()
-                    }
-                }
-            }
         }
         .presentationDetents([.medium])
     }

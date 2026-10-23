@@ -54,7 +54,7 @@ enum Persistence {
     private static let fileName = "store.json"
     private static let folderName = "GlassScale"
 
-    /// 用于 iCloud / 文件 App 备份的文件夹（Application Support 默认不参与备份的用户偏好区）
+    /// 本机数据目录；目录创建失败会在实际保存时报告。
     private static var folderURL: URL {
         let base = (try? FileManager.default.url(
             for: .applicationSupportDirectory,
@@ -75,19 +75,45 @@ enum Persistence {
     /// 头像单独存一个文件，不进 JSON（图片 base64 会撑大 store.json）
     static var avatarURL: URL { folderURL.appendingPathComponent("avatar.jpg") }
 
-    static func load() -> Payload? {
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+    static func load(from url: URL = fileURL) throws -> Payload? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(Payload.self, from: data)
+        return try decoder.decode(Payload.self, from: data)
     }
 
-    static func save(_ payload: Payload) {
+    static func backupURL(for url: URL = fileURL) -> URL {
+        url.deletingLastPathComponent().appendingPathComponent("store.backup.json")
+    }
+
+    static func loadBackup(for url: URL = fileURL) throws -> Payload? {
+        try load(from: backupURL(for: url))
+    }
+
+    static func save(_ payload: Payload, to url: URL = fileURL, allowReplacingUnreadable: Bool = false) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(payload) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        let data = try encoder.encode(payload)
+        let folder = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        if FileManager.default.fileExists(atPath: url.path) {
+            do {
+                _ = try load(from: url)
+            } catch {
+                guard allowReplacingUnreadable else { throw error }
+                // 恢复须显式触发；先保留无法读取的原文件，不能静默覆盖。
+                let preserved = folder.appendingPathComponent("store.unreadable-\(UUID().uuidString).json")
+                try FileManager.default.copyItem(at: url, to: preserved)
+            }
+            if (try? load(from: url)) != nil {
+                try Data(contentsOf: url).write(to: backupURL(for: url), options: .atomic)
+            }
+        } else if !FileManager.default.fileExists(atPath: backupURL(for: url).path) {
+            try data.write(to: backupURL(for: url), options: .atomic)
+        }
+        try data.write(to: url, options: .atomic)
     }
 
     static func wipe() {
