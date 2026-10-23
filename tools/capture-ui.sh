@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+OUT="$RUNNER_TEMP/glassscale-ui"
+mkdir -p "$OUT"
+xcrun simctl list devices available --json > "$OUT/available-devices.json"
+DEVICE_ID=$(python3 - "$OUT/available-devices.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    devices = json.load(f)['devices']
+options = [d for runtime, group in devices.items() if 'iOS-26' in runtime
+           for d in group if d.get('isAvailable', False) and 'iPhone' in d['name']]
+options.sort(key=lambda d: (d['name'] != 'iPhone 17 Pro', d['name'] != 'iPhone 17', d['name']))
+if not options:
+    raise SystemExit('No available iOS 26 iPhone simulator; see available-devices.json')
+print(options[0]['udid'])
+PY
+)
+
+xcodebuild -project GlassScale.xcodeproj -scheme GlassScale \
+  -configuration Debug -sdk iphonesimulator \
+  -destination "id=$DEVICE_ID" -derivedDataPath "$RUNNER_TEMP/ui-build" \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" build > "$OUT/simulator-build.log" 2>&1 || {
+    tail -100 "$OUT/simulator-build.log"
+    exit 1
+  }
+
+APP="$RUNNER_TEMP/ui-build/Build/Products/Debug-iphonesimulator/GlassScale.app"
+test -d "$APP"
+BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+xcrun simctl bootstatus "$DEVICE_ID" -b
+xcrun simctl status_bar "$DEVICE_ID" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+xcrun simctl install "$DEVICE_ID" "$APP"
+
+capture() {
+  local page="$1"
+  local appearance="$2"
+  xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+  xcrun simctl ui "$DEVICE_ID" appearance "$appearance"
+  if [ "$page" = records ]; then
+    xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" --ui-preview --ui-preview-records -AppleLanguages '(zh-Hans)' -AppleLocale zh_CN
+  else
+    xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" --ui-preview -AppleLanguages '(zh-Hans)' -AppleLocale zh_CN
+  fi
+  sleep 4
+  xcrun simctl io "$DEVICE_ID" screenshot "$OUT/$page-$appearance.png"
+}
+
+capture home light
+capture records light
+capture home dark
+capture records dark
+xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+printf 'Screenshots captured for %s using simulator %s\n' "$BUNDLE_ID" "$DEVICE_ID"

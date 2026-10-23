@@ -34,6 +34,33 @@ struct GlassCard<Content: View>: View {
 
 // MARK: - 统计磁贴
 
+/// 内容层保持安静，玻璃材质留给系统导航和关键操作。
+struct ContentCard<Content: View>: View {
+    @Environment(\.colorScheme) private var scheme
+    let cornerRadius: CGFloat
+    let contentPadding: CGFloat
+    let content: Content
+
+    init(cornerRadius: CGFloat = Theme.cardCorner, contentPadding: CGFloat = 18,
+         @ViewBuilder content: () -> Content) {
+        self.cornerRadius = cornerRadius
+        self.contentPadding = contentPadding
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(contentPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(scheme == .dark ? 0.94 : 0.92),
+                        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(scheme == .dark ? 0.07 : 0.035), lineWidth: 0.5)
+            }
+    }
+}
+
 /// 首页 2×2 的小玻璃块。
 struct StatTile: View {
     let title: String

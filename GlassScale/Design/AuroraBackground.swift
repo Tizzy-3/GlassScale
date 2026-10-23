@@ -21,16 +21,16 @@ struct AuroraBackground: View {
 
             ZStack {
                 base
-                blob(size: side * 0.95, color: Theme.aqua, alpha: 0.55,
+                blob(size: side * 0.95, color: Theme.aqua, alpha: 0.22,
                      at: CGPoint(x: w * 0.20, y: h * 0.16),
                      drift: CGSize(width: 46, height: 64), duration: 22)
-                blob(size: side * 1.00, color: Theme.violet, alpha: 0.50,
+                blob(size: side * 1.00, color: Theme.violet, alpha: 0.15,
                      at: CGPoint(x: w * 0.88, y: h * 0.28),
                      drift: CGSize(width: -52, height: 58), duration: 26)
-                blob(size: side * 0.90, color: Theme.mint, alpha: 0.45,
+                blob(size: side * 0.90, color: Theme.mint, alpha: 0.16,
                      at: CGPoint(x: w * 0.40, y: h * 0.84),
                      drift: CGSize(width: 60, height: -44), duration: 24)
-                blob(size: side * 0.55, color: Theme.coral, alpha: 0.22,
+                blob(size: side * 0.55, color: Theme.coral, alpha: 0.06,
                      at: CGPoint(x: w * 0.72, y: h * 0.62),
                      drift: CGSize(width: -40, height: -54), duration: 19)
             }

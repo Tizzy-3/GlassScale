@@ -1,180 +1,107 @@
 import SwiftUI
 
-/// 首页喝水卡片：今日进度 + 一键记录 + 近 7 天小统计。
+/// 今日喝水：简短进度和杯量操作，周统计放在明细页。
 struct WaterCard: View {
     @Environment(WeightStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title) private var readingSize: CGFloat = 28
     @State private var showGoalSheet = false
     @State private var showCustomSheet = false
     @State private var showHistory = false
+    @State private var showCups = false
 
     private var drunk: Int { store.todayWaterMl }
     private var goal: Int { store.settings.waterGoalMl }
-    private var progress: Double {
-        guard goal > 0 else { return 0 }
-        return min(1, Double(drunk) / Double(goal))
-    }
+    private var progress: Double { goal > 0 ? min(1, Double(drunk) / Double(goal)) : 0 }
 
     var body: some View {
-        GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
-            VStack(alignment: .leading, spacing: 14) {
-                header
-                numberRow
+        ContentCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
+            VStack(alignment: .leading, spacing: 12) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 6) { title; actions }
+                } else {
+                    HStack { title; Spacer(minLength: 4); actions }
+                }
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline) { reading; Spacer(); status }
+                    VStack(alignment: .leading, spacing: 6) { reading; status }
+                }
                 progressBar
                 quickButtons
-                weekStrip
             }
         }
         .sheet(isPresented: $showGoalSheet) { WaterGoalSheet() }
         .sheet(isPresented: $showCustomSheet) { WaterEntryEditorView() }
         .sheet(isPresented: $showHistory) { WaterHistoryView() }
+        .sheet(isPresented: $showCups) { WaterCupSettingsView() }
     }
 
-    // MARK: - 标题行
+    private var title: some View {
+        Label("今日喝水", systemImage: "drop.fill").font(.headline)
+            .foregroundStyle(Theme.aqua)
+    }
 
-    private var header: some View {
+    private var actions: some View {
         HStack(spacing: 8) {
-            Image(systemName: "drop.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.aqua)
-            Text("今日喝水")
-                .font(.headline)
-            Spacer(minLength: 8)
-            if !store.todayWaterEntries.isEmpty {
-                Button("撤销") { store.undoLastWater() }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Button { showHistory = true } label: {
+                Text("详情").font(.subheadline.weight(.medium)).padding(.horizontal, 8).frame(minHeight: 44)
             }
-            Button { showGoalSheet = true } label: {
-                Image(systemName: "gearshape")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            .buttonStyle(.glass)
+            .accessibilityLabel("喝水明细与补录")
+            Menu {
+                Button("设置喝水目标", systemImage: "target") { showGoalSheet = true }
+                Button("常用杯量", systemImage: "cup.and.saucer") { showCups = true }
+                if !store.todayWaterEntries.isEmpty {
+                    Button("撤销今日最后一笔", systemImage: "arrow.uturn.backward") { store.undoLastWater() }
+                }
+            } label: {
+                Image(systemName: "ellipsis").font(.subheadline.weight(.semibold)).frame(width: 44, height: 44)
             }
-            .accessibilityLabel("设置喝水目标")
+            .buttonStyle(.glass).buttonBorderShape(.circle).accessibilityLabel("喝水设置与撤销")
         }
     }
 
-    // MARK: - 数字行
-
-    private var numberRow: some View {
+    private var reading: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("\(drunk)")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .contentTransition(.numericText())
-            Text("/ \(goal) ml")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Spacer()
-            if progress >= 1 {
-                Label("已达标", systemImage: "checkmark.circle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.mint)
-            } else {
-                Text("\(Int(progress * 100))%")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-            }
+            Text("\(drunk)").font(.system(size: readingSize, weight: .semibold, design: .rounded))
+                .monospacedDigit().contentTransition(reduceMotion ? .identity : .numericText())
+            Text("/ \(goal) ml").font(.subheadline).foregroundStyle(.secondary)
         }
     }
 
-    // MARK: - 进度条
+    private var status: some View {
+        Text(progress >= 1 ? "今日已达标" : "\(Int(progress * 100))%")
+            .font(.caption.weight(.medium)).foregroundStyle(progress >= 1 ? Theme.mint : .secondary)
+    }
 
     private var progressBar: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(.secondary.opacity(0.15))
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.aqua, Theme.mint],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: max(12, proxy.size.width * progress))
-                    .animation(.snappy, value: progress)
+                Capsule().fill(.secondary.opacity(0.12))
+                Capsule().fill(Theme.accentGradient).frame(width: proxy.size.width * progress)
+                    .animation(reduceMotion ? nil : .snappy, value: progress)
             }
         }
-        .frame(height: 10)
+        .frame(height: 7)
+        .accessibilityLabel("今日喝水完成百分之\(Int(progress * 100))")
     }
-
-    // MARK: - 快捷记录
 
     private var quickButtons: some View {
-        VStack(spacing: 10) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 10)], spacing: 10) {
-                ForEach(store.settings.waterCupSizes, id: \.self) { ml in
-                    quickButton(title: "+\(ml) ml", ml: ml)
-                }
-            }
-            HStack(spacing: 10) {
-                Button { showCustomSheet = true } label: {
-                    Label("自定义", systemImage: "plus")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.glass)
-                Button { showHistory = true } label: {
-                    Label("明细与补录", systemImage: "list.bullet")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 170 : 84), spacing: 8)], spacing: 8) {
+            ForEach(store.settings.waterCupSizes, id: \.self) { ml in
+                Button { store.logWater(ml: ml) } label: {
+                    Text("+\(ml) ml").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.glass)
             }
-        }
-    }
-
-    private func quickButton(title: String, ml: Int) -> some View {
-        Button { store.logWater(ml: ml) } label: {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-        }
-        .buttonStyle(.glass)
-    }
-
-    // MARK: - 近 7 天
-
-    private var weekStrip: some View {
-        let days = store.waterMlByDay(lastDays: 7)
-        let goal = max(1, store.settings.waterGoalMl)
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("近 7 天")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack(alignment: .bottom, spacing: 6) {
-                ForEach(days.indices, id: \.self) { i in
-                    let item = days[i]
-                    let isToday = i == days.count - 1
-                    VStack(spacing: 4) {
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(
-                                item.ml > 0
-                                    ? (isToday ? Theme.aqua : Theme.aqua.opacity(0.55))
-                                    : .secondary.opacity(0.18)
-                            )
-                            .frame(height: max(4, CGFloat(min(1.0, Double(item.ml) / Double(goal))) * 44))
-                        Text(weekdayLabel(for: item.date, isToday: isToday))
-                            .font(.caption2)
-                            .foregroundStyle(isToday ? Theme.aqua : .secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
+            Button { showCustomSheet = true } label: {
+                Text("自定义").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 44)
             }
+            .buttonStyle(.glass)
         }
-    }
-
-    private func weekdayLabel(for date: Date, isToday: Bool) -> String {
-        if isToday { return "今" }
-        let w = Calendar.current.component(.weekday, from: date) // 1 = 周日
-        return ["日", "一", "二", "三", "四", "五", "六"][w - 1]
     }
 }
-
 // MARK: - 目标设置
 
 /// 每日喝水目标设置。
@@ -189,7 +116,7 @@ struct WaterGoalSheet: View {
                 AuroraBackground()
 
                 VStack(spacing: 18) {
-                    GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
+                    ContentCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("每日喝水目标")
                                 .font(.headline)
