@@ -149,6 +149,29 @@ run("water upsert edits a selected ID while preserving same-time records") {
                "water edit changes one ID and preserves unrelated cup")
 }
 
+run("water import deduplicates IDs and exact samples while preserving distinct cups") {
+    let first = WaterEntry(date: date(0), ml: 250)
+    let sameID = WaterEntry(id: first.id, date: date(-1), ml: 500)
+    let exactSample = WaterEntry(date: first.date, ml: first.ml)
+    let later = WaterEntry(date: date(0, hour: 10), ml: 250)
+    let differentAmount = WaterEntry(date: first.date, ml: 500)
+    let earlier = WaterEntry(date: date(-1), ml: 300)
+    let repeatedIncomingSample = WaterEntry(date: later.date, ml: later.ml)
+    let merged = RecordOperations.mergeWaters(
+        [sameID, exactSample, later, differentAmount, earlier, later, repeatedIncomingSample], into: [first]
+    )
+    try expect(merged.added == 3 && merged.skipped == 4, "water import counts both existing and in-batch duplicates")
+    try expect(merged.entries.count == 4 && merged.entries.contains(first), "existing water record stays unchanged")
+    try expect(merged.entries.contains(later) && merged.entries.contains(differentAmount),
+               "different time or water amount remains a distinct record")
+    try expect(merged.entries.first == earlier, "merged water history is sorted chronologically")
+    let repeatedImport = RecordOperations.mergeWaters(merged.entries, into: merged.entries)
+    try expect(repeatedImport.added == 0 && repeatedImport.skipped == 4 && repeatedImport.entries == merged.entries,
+               "reimporting the same backup is idempotent")
+    let empty = RecordOperations.mergeWaters([], into: [])
+    try expect(empty.entries.isEmpty && empty.added == 0 && empty.skipped == 0, "empty water backup is valid")
+}
+
 run("old settings and payload decode without new fields") {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
@@ -170,6 +193,16 @@ run("old settings and payload decode without new fields") {
     encoder.dateEncodingStrategy = .iso8601
     let restored = try decoder.decode(Persistence.Payload.self, from: encoder.encode(payload))
     try expect(restored.entries == payload.entries && restored.settings == payload.settings, "backup round trip preserves model")
+}
+
+run("cup settings migration filters invalid sizes and falls back when empty") {
+    let decoder = JSONDecoder()
+    for cups in ["[]", "[0,-1,10001]"] {
+        let settings = try decoder.decode(AppSettings.self, from: Data("{\"waterCupSizes\":\(cups)}".utf8))
+        try expect(settings.waterCupSizes == [250, 500], "empty or entirely invalid cup sizes use safe defaults")
+    }
+    let mixed = try decoder.decode(AppSettings.self, from: Data("{\"waterCupSizes\":[0,350,350,-20,10000,250,500,750,10001]}".utf8))
+    try expect(mixed.waterCupSizes == [350, 10000, 250, 500], "valid sizes keep order, deduplicate, and limit to four cups")
 }
 
 run("persistence keeps last-good backup and preserves corrupt original on recovery") {
@@ -291,6 +324,33 @@ run("notification budget reserves daily weight and uses unique request IDs") {
     try expect(requests.allSatisfy { $0.date > now }, "no request fires in the past")
     let decoded = try JSONDecoder().decode(ReminderSettings.self, from: Data("{}".utf8))
     try expect(decoded == ReminderSettings(), "partial old reminder JSON receives defaults")
+}
+
+run("reminder migration clamps invalid time fields and schedule excludes exact boundaries") {
+    let invalid = """
+    {"weightMinuteOfDay":-1,"waterStartMinuteOfDay":9999,"waterEndMinuteOfDay":-50,"waterIntervalMinutes":0}
+    """
+    let decoded = try JSONDecoder().decode(ReminderSettings.self, from: Data(invalid.utf8))
+    try expect(decoded.weightMinuteOfDay == 0 && decoded.waterStartMinuteOfDay == 1439
+               && decoded.waterEndMinuteOfDay == 0 && decoded.waterIntervalMinutes == 30,
+               "invalid persisted schedule is clamped to valid times and a positive interval")
+    try expect(!decoded.weightEnabled && !decoded.waterEnabled, "partial legacy schedule never enables reminders")
+    var settings = ReminderSettings()
+    settings.weightEnabled = true
+    settings.weightMinuteOfDay = 9 * 60
+    settings.waterEnabled = true
+    settings.waterStartMinuteOfDay = 9 * 60
+    settings.waterEndMinuteOfDay = 13 * 60
+    settings.waterIntervalMinutes = 120
+    let boundaryNow = date(0, hour: 9)
+    let requests = ReminderSchedule.requests(settings: settings, now: boundaryNow, calendar: cal,
+                                              weightDates: [date(-1)])
+    try expect(requests.allSatisfy { $0.date > boundaryNow }, "exact-now triggers are not rescheduled in the past")
+    let todayWater = requests.filter { $0.kind == .water && cal.isDate($0.date, inSameDayAs: boundaryNow) }
+    try expect(todayWater.count == 1 && cal.component(.hour, from: todayWater[0].date) == 11,
+               "active window's end is exclusive and start equal to now is skipped")
+    try expect(requests.filter { $0.kind == .weight }.count == 6,
+               "weight time equal to now rolls forward to the next six days")
 }
 
 print("\(checks) checks, \(failures) failures; timezone \(TimeZone.current.identifier)")

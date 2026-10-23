@@ -13,13 +13,26 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: AppTab = .dashboard
     @State private var pendingQuickAdd = false
+    @State private var showRecoveryImport = false
     private let clock = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
             AuroraBackground()
 
-            if store.settings.hasCompletedOnboarding {
+            if store.requiresStorageRecovery {
+                VStack(spacing: 20) {
+                    Image(systemName: "externaldrive.badge.exclamationmark").font(.largeTitle)
+                    Text("恢复本机数据").font(.title2.bold())
+                    Text("数据文件暂时无法读取。原文件已保留，请选择备份恢复后继续使用。")
+                        .foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    if store.hasRecoverableBackup {
+                        Button("恢复自动备份") { store.restoreAutomaticBackup() }.buttonStyle(.glassProminent)
+                    }
+                    Button("选择 JSON 文件备份") { showRecoveryImport = true }.buttonStyle(.glass)
+                }
+                .padding(28)
+            } else if store.settings.hasCompletedOnboarding {
                 tabs
                     .transition(.opacity)
             } else {
@@ -52,6 +65,7 @@ struct RootView: View {
         .sheet(isPresented: $pendingQuickAdd) {
             EntryEditorView(mode: .create)
         }
+        .sheet(isPresented: $showRecoveryImport) { ImportSheet() }
         .alert("数据存储提示", isPresented: Binding(
             get: { store.storageError != nil },
             set: { if !$0 { store.storageError = nil } }

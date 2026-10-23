@@ -56,18 +56,8 @@ enum Persistence {
 
     /// 本机数据目录；目录创建失败会在实际保存时报告。
     private static var folderURL: URL {
-        let base = (try? FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )) ?? FileManager.default.temporaryDirectory
-
-        let folder = base.appendingPathComponent(folderName, isDirectory: true)
-        if !FileManager.default.fileExists(atPath: folder.path) {
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        }
-        return folder
+        // 不能退回临时目录：目录不可用时须报告错误，避免文件随后被清理。
+        URL.applicationSupportDirectory.appendingPathComponent(folderName, isDirectory: true)
     }
 
     static var fileURL: URL { folderURL.appendingPathComponent(fileName) }

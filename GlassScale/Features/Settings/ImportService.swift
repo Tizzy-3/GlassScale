@@ -123,6 +123,7 @@ struct ImportSheet: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(store.requiresStorageRecovery)
 
                     Button { showJSONPicker = true } label: {
                         importRow(
@@ -135,6 +136,9 @@ struct ImportSheet: View {
                     }
                     .buttonStyle(.plain)
 
+                    if let error = store.storageError {
+                        Text(error).font(.caption).foregroundStyle(Theme.coral)
+                    }
                     Spacer()
                 }
                 .padding(Theme.pagePadding)
@@ -165,11 +169,13 @@ struct ImportSheet: View {
                 isPresented: $showRestoreChoice,
                 titleVisibility: .visible
             ) {
-                Button("合并导入") { mergeBackup() }
+                if !store.requiresStorageRecovery {
+                    Button("合并导入") { mergeBackup() }
+                }
                 Button("覆盖恢复", role: .destructive) { restoreBackup() }
                 Button("取消", role: .cancel) { pendingBackup = nil }
             } message: {
-                Text("合并导入会保留现有数据并跳过重复记录；覆盖恢复会用备份替换全部数据（含档案与目标）。")
+                Text("合并导入会添加不重复的体重和喝水记录；覆盖恢复会替换全部数据（含档案、目标与提醒设置）。")
             }
         }
         .presentationDetents([.medium])
@@ -227,11 +233,8 @@ struct ImportSheet: View {
     private func mergeBackup() {
         guard let payload = pendingBackup else { return }
         pendingBackup = nil
-        let (added, skipped) = store.importEntries(payload.entries)
-        if added > 0 {
-            store.toast = "成功导入 \(added) 条记录" + (skipped > 0 ? "（跳过 \(skipped) 条重复）" : "")
-        } else {
-            store.toast = "没有新的记录（\(skipped) 条重复已跳过）"
+        if let result = store.importBackupRecords(payload) {
+            store.toast = "已合并 \(result.weights) 条体重、\(result.waters) 条喝水记录（重复已跳过）"
         }
     }
 
@@ -240,6 +243,7 @@ struct ImportSheet: View {
         pendingBackup = nil
         if store.restore(from: payload) {
             store.toast = "已从备份恢复 \(payload.entries.count) 条记录"
+            dismiss()
         }
     }
 

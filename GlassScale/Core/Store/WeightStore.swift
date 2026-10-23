@@ -212,9 +212,27 @@ final class WeightStore {
         return (result.added, result.skipped)
     }
 
+    /// 文件备份合并同时保留体重和喝水记录，一次写入失败则整体回滚。
+    func importBackupRecords(_ payload: Persistence.Payload) -> (weights: Int, waters: Int)? {
+        let previousWeights = entries
+        let previousWaters = waterEntries
+        let weights = RecordOperations.mergeWeights(payload.entries, into: entries)
+        let waters = RecordOperations.mergeWaters(payload.waterEntries, into: waterEntries)
+        entries = weights.entries
+        waterEntries = waters.entries
+        guard persistNow() else {
+            entries = previousWeights
+            waterEntries = previousWaters
+            return nil
+        }
+        refreshReminders()
+        return (weights.added, waters.added)
+    }
+
     /// 从完整备份恢复：覆盖记录、档案、目标与设置。
     @discardableResult
     func restore(from payload: Persistence.Payload) -> Bool {
+        saveWorkItem?.cancel()
         do {
             try Persistence.save(payload, allowReplacingUnreadable: true)
             apply(payload)
@@ -240,6 +258,7 @@ final class WeightStore {
     }
 
     var hasRecoverableBackup: Bool { (try? Persistence.loadBackup()) != nil }
+    var requiresStorageRecovery: Bool { storageBlocked }
 
     func restoreAutomaticBackup() {
         do {

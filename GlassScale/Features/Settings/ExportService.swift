@@ -49,6 +49,7 @@ enum ExportService {
         return writeTemporary(makeCSV(entries: entries, unit: unit), name: "享瘦-体重记录-\(stamp)", extension: "csv")
     }
 
+    @MainActor
     static func json(store: WeightStore) -> URL? {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

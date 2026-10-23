@@ -33,9 +33,30 @@ enum RecordOperations {
     static func upsertWater(_ entry: WaterEntry, in entries: [WaterEntry]) -> [WaterEntry] {
         var result = entries.filter { $0.id != entry.id }
         result.append(entry)
-        return result.sorted {
-            $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date
+        return result.sorted(by: waterOrder)
+    }
+
+    static func mergeWaters(
+        _ incoming: [WaterEntry], into existing: [WaterEntry]
+    ) -> (entries: [WaterEntry], added: Int, skipped: Int) {
+        var result = existing
+        var ids = Set(existing.map(\.id))
+        var samples = Set(existing.map(WaterSampleKey.init))
+        var added = 0
+
+        for entry in incoming {
+            let sample = WaterSampleKey(entry)
+            guard !ids.contains(entry.id), !samples.contains(sample) else { continue }
+            result.append(entry)
+            ids.insert(entry.id)
+            samples.insert(sample)
+            added += 1
         }
+        return (result.sorted(by: waterOrder), added, incoming.count - added)
+    }
+
+    private static func waterOrder(_ lhs: WaterEntry, _ rhs: WaterEntry) -> Bool {
+        lhs.date == rhs.date ? lhs.id.uuidString < rhs.id.uuidString : lhs.date < rhs.date
     }
 
     private static func weightOrder(_ lhs: WeightEntry, _ rhs: WeightEntry) -> Bool {
@@ -51,6 +72,16 @@ enum RecordOperations {
             date = entry.date
             weightKg = entry.weightKg
             source = entry.source.rawValue
+        }
+    }
+
+    private struct WaterSampleKey: Hashable {
+        let date: Date
+        let ml: Int
+
+        init(_ entry: WaterEntry) {
+            date = entry.date
+            ml = entry.ml
         }
     }
 }
