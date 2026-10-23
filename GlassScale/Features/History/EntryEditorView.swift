@@ -212,12 +212,15 @@ struct EntryEditorView: View {
 
         let base: WeightEntry?
         switch mode {
-        case .create: base = store.todayEntry ?? store.entries.last
-        case .edit(let entry): base = entry
+        case .create:
+            base = store.todayEntry ?? store.entries.last
+            date = Date()
+        case .edit(let entry):
+            base = entry
+            date = entry.date
         }
 
         if let base {
-            date = base.date
             bodyFatText = base.bodyFatPercent.map { Fmt.number($0, decimals: 1) } ?? ""
             note = base.note
         } else {
