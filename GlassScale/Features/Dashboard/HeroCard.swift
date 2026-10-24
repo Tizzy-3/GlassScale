@@ -158,13 +158,27 @@ struct HeroCard: View {
     private func metric(_ title: String, value: String, tint: Color = AppDesign.Palette.primaryText) -> some View {
         VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
             Text(title).font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value).font(AppDesign.TypeScale.metric).monospacedDigit().foregroundStyle(tint)
-                    .contentTransition(reduceMotion ? .identity : .numericText())
-                Text(unit.symbol).font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    metricValue(value, tint: tint)
+                    metricUnit
+                }
+                VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
+                    metricValue(value, tint: tint)
+                    metricUnit
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+
+    private func metricValue(_ value: String, tint: Color) -> some View {
+        Text(value).font(AppDesign.TypeScale.metric).monospacedDigit().foregroundStyle(tint)
+            .contentTransition(reduceMotion ? .identity : .numericText())
+    }
+
+    private var metricUnit: some View {
+        Text(unit.symbol).font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
     }
 }

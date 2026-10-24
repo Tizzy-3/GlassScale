@@ -77,5 +77,8 @@ xcrun simctl status_bar "$DEVICE_ID" override --time '9:41' --dataNetwork wifi -
 xcrun simctl install "$DEVICE_ID" "$APP"
 capture home-small light --ui-preview-pounds
 capture home-small dark --ui-preview-pounds
+xcrun simctl ui "$DEVICE_ID" content_size extra-extra-extra-large
+capture home-small-xxxlarge light --ui-preview-pounds
+xcrun simctl ui "$DEVICE_ID" content_size large
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 printf 'Screenshots captured for %s using simulator %s\n' "$BUNDLE_ID" "$DEVICE_ID"

@@ -129,6 +129,7 @@ struct AppSurface<Content: View>: View {
 }
 
 struct AppPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
 
@@ -137,8 +138,14 @@ struct AppPrimaryButtonStyle: ButtonStyle {
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: AppDesign.Control.primaryHeight)
             .foregroundStyle(AppDesign.Palette.onAction)
-            .background(AppDesign.Palette.action, in: .capsule)
-            .opacity(!isEnabled ? 0.45 : configuration.isPressed ? 0.83 : 1)
+            .background {
+                Capsule().fill(AppDesign.Palette.action)
+                    .overlay {
+                        Capsule().fill((scheme == .dark ? Color.white : Color.black)
+                            .opacity(configuration.isPressed ? 0.08 : 0))
+                    }
+            }
+            .opacity(isEnabled ? 1 : 0.45)
             .scaleEffect(reduceMotion || !configuration.isPressed ? 1 : 0.985)
             .animation(reduceMotion ? nil : AppDesign.Motion.press, value: configuration.isPressed)
     }
