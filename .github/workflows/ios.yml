@@ -92,7 +92,7 @@ jobs:
       - name: 渲染 iOS 26 实际界面
         if: github.ref_name == 'ui/floating-glass-preview'
         continue-on-error: true
-        timeout-minutes: 12
+        timeout-minutes: 18
         run: bash tools/capture-ui.sh
 
       - name: 上传 UI 截图与诊断

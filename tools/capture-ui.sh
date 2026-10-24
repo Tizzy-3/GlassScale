@@ -37,12 +37,13 @@ xcrun simctl install "$DEVICE_ID" "$APP"
 capture() {
   local page="$1"
   local appearance="$2"
+  shift 2
   xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
   xcrun simctl ui "$DEVICE_ID" appearance "$appearance"
   if [ "$page" = records ]; then
     xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" --ui-preview --ui-preview-records -AppleLanguages '(zh-Hans)' -AppleLocale zh_CN
   else
-    xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" --ui-preview -AppleLanguages '(zh-Hans)' -AppleLocale zh_CN
+    xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" --ui-preview "$@" -AppleLanguages '(zh-Hans)' -AppleLocale zh_CN
   fi
   sleep 4
   xcrun simctl io "$DEVICE_ID" screenshot "$OUT/$page-$appearance.png"
@@ -52,5 +53,29 @@ capture home light
 capture records light
 capture home dark
 capture records dark
+capture home-empty light --ui-preview-empty
+capture home-complete dark --ui-preview-water-complete
+capture home-sunset light --ui-preview-sunset
+xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
+capture home-accessibility light
+xcrun simctl ui "$DEVICE_ID" content_size large
+xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+
+# Use a real 375pt simulator to check compact width, without rebuilding the app.
+RUNTIME_ID=$(python3 - "$OUT/available-devices.json" "$DEVICE_ID" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    devices = json.load(f)['devices']
+print(next(runtime for runtime, group in devices.items() if any(d['udid'] == sys.argv[2] for d in group)))
+PY
+)
+xcrun simctl shutdown "$DEVICE_ID" || true
+DEVICE_ID=$(xcrun simctl create GlassScale-Compact com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation "$RUNTIME_ID")
+xcrun simctl boot "$DEVICE_ID"
+xcrun simctl bootstatus "$DEVICE_ID" -b
+xcrun simctl status_bar "$DEVICE_ID" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+xcrun simctl install "$DEVICE_ID" "$APP"
+capture home-small light --ui-preview-pounds
+capture home-small dark --ui-preview-pounds
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 printf 'Screenshots captured for %s using simulator %s\n' "$BUNDLE_ID" "$DEVICE_ID"

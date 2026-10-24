@@ -30,13 +30,19 @@ struct GlassScaleApp: App {
         var settings = AppSettings()
         settings.hasCompletedOnboarding = true
         settings.showsDemoData = false
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-preview-sunset") { settings.theme = .sunset }
+        if arguments.contains("--ui-preview-pounds") { settings.weightUnit = .pounds }
         var profile = BodyProfile()
         profile.baselineKg = 75
         let goal = WeightGoal(targetWeightKg: 65, targetDate: calendar.date(byAdding: .month, value: 3, to: today) ?? today)
-        let waters = [250, 500, 500].enumerated().map { index, ml in
-            WaterEntry(date: latest.addingTimeInterval(Double(index + 1) * -600), ml: ml)
+        let amounts = arguments.contains("--ui-preview-water-complete") ? [500, 750, 750] : [250, 500, 500]
+        let waters = amounts.enumerated().map { index, ml in
+            WaterEntry(date: max(today, latest.addingTimeInterval(Double(index + 1) * -600)), ml: ml)
         }
-        store.restore(from: Persistence.Payload(entries: entries, profile: profile, goal: goal, settings: settings, waterEntries: waters))
+        let empty = arguments.contains("--ui-preview-empty")
+        store.restore(from: Persistence.Payload(entries: empty ? [] : entries, profile: profile,
+                                               goal: empty ? nil : goal, settings: settings, waterEntries: empty ? [] : waters))
         return store
     }
     #endif
