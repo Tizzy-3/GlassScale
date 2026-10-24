@@ -45,7 +45,7 @@ struct WaterCard: View {
     private var actions: some View {
         HStack(spacing: 8) {
             Button { showHistory = true } label: {
-                Text("详情").font(.subheadline.weight(.medium)).padding(.horizontal, 8).frame(minHeight: 44)
+                Text("详情").font(.subheadline.weight(.medium)).padding(.horizontal, 8).frame(minHeight: 30)
             }
             .buttonStyle(.glass)
             .accessibilityLabel("喝水明细与补录")
@@ -56,7 +56,7 @@ struct WaterCard: View {
                     Button("撤销今日最后一笔", systemImage: "arrow.uturn.backward") { store.undoLastWater() }
                 }
             } label: {
-                Image(systemName: "ellipsis").font(.subheadline.weight(.semibold)).frame(width: 44, height: 44)
+                Image(systemName: "ellipsis").font(.subheadline.weight(.semibold)).frame(width: 32, height: 32)
             }
             .buttonStyle(.glass).buttonBorderShape(.circle).accessibilityLabel("喝水设置与撤销")
         }
@@ -91,12 +91,12 @@ struct WaterCard: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 170 : 84), spacing: 8)], spacing: 8) {
             ForEach(store.settings.waterCupSizes, id: \.self) { ml in
                 Button { store.logWater(ml: ml) } label: {
-                    Text("+\(ml) ml").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 44)
+                    Text("+\(ml) ml").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 30)
                 }
                 .buttonStyle(.glass)
             }
             Button { showCustomSheet = true } label: {
-                Text("自定义").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 44)
+                Text("自定义").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 30)
             }
             .buttonStyle(.glass)
         }

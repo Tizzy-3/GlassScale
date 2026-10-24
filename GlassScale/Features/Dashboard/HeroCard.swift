@@ -45,8 +45,8 @@ struct HeroCard: View {
     }
 
     var body: some View {
-        ContentCard(cornerRadius: Theme.heroCorner, contentPadding: 22) {
-            VStack(alignment: .leading, spacing: 18) {
+        ContentCard(cornerRadius: Theme.heroCorner, contentPadding: 18) {
+            VStack(alignment: .leading, spacing: 12) {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 18) { reading; if goal != nil { goalProgress } }
                 } else {
@@ -61,7 +61,8 @@ struct HeroCard: View {
                 }
                 Button(action: onAdd) {
                     Label("记体重", systemImage: "plus").font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 50)
+                        // 原生玻璃按钮会增加内边距，标签 36pt 对应约 50pt 的按钮。
+                        .frame(maxWidth: .infinity, minHeight: 36)
                 }
                 .buttonStyle(.glassProminent).buttonBorderShape(.capsule).tint(Theme.aqua)
             }
@@ -113,7 +114,7 @@ struct HeroCard: View {
                         .foregroundStyle(Theme.aqua).lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round)).interpolationMethod(.monotone)
                 }
                 .chartYScale(domain: chartDomain).chartXAxis(.hidden).chartYAxis(.hidden).chartLegend(.hidden)
-                .frame(height: 64).accessibilityLabel("近 7 天体重趋势，\(points.count) 天有记录")
+                .frame(height: 48).accessibilityLabel("近 7 天体重趋势，\(points.count) 天有记录")
             } else {
                 Text("再记一天，就能看到体重趋势").font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)

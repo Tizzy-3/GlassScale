@@ -61,6 +61,7 @@ struct HistoryView: View {
                 .padding(.top, 4)
             }
             .navigationTitle("记录")
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: kind == .weight ? "搜索备注或体重" : "搜索水量或日期")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

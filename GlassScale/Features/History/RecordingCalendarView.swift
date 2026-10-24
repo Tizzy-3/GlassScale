@@ -100,22 +100,7 @@ struct RecordingCalendarContent: View {
                         .disabled(calendar.isDate(month, equalTo: Date(), toGranularity: .month))
                 }
                 .buttonStyle(.plain)
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 7), spacing: 5) {
-                    ForEach(0..<7, id: \.self) { column in
-                        Text(calendar.veryShortStandaloneWeekdaySymbols[(calendar.firstWeekday - 1 + column) % 7])
-                            .font(.caption).foregroundStyle(.secondary).frame(height: 24)
-                    }
-                    let offset = (calendar.component(.weekday, from: startOfMonth) - calendar.firstWeekday + 7) % 7
-                    let days = calendar.range(of: .day, in: .month, for: startOfMonth)?.count ?? 30
-                    let cells = ((offset + days + 6) / 7) * 7
-                    ForEach(0..<cells, id: \.self) { cell in
-                        if cell < offset || cell >= offset + days {
-                            Color.clear.frame(height: 44)
-                        } else if let date = calendar.date(byAdding: .day, value: cell - offset, to: startOfMonth) {
-                            dayButton(date)
-                        }
-                    }
-                }
+                calendarGrid
                 HStack(spacing: 6) {
                     Circle().fill(accent).frame(width: 5, height: 5)
                     Text("有\(kind.title)记录")
@@ -126,6 +111,35 @@ struct RecordingCalendarContent: View {
                 .padding(.horizontal, 8)
             }
         }
+    }
+
+    /// At most six weeks: eager rows give the panel its full height on first layout.
+    private var calendarGrid: some View {
+        let offset = (calendar.component(.weekday, from: startOfMonth) - calendar.firstWeekday + 7) % 7
+        let days = calendar.range(of: .day, in: .month, for: startOfMonth)?.count ?? 30
+        let weeks = (offset + days + 6) / 7
+        return VStack(spacing: 5) {
+            HStack(spacing: 3) {
+                ForEach(0..<7, id: \.self) { column in
+                    Text(calendar.veryShortStandaloneWeekdaySymbols[(calendar.firstWeekday - 1 + column) % 7])
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).frame(height: 24)
+                }
+            }
+            ForEach(0..<weeks, id: \.self) { week in
+                HStack(spacing: 3) {
+                    ForEach(0..<7, id: \.self) { column in
+                        let cell = week * 7 + column
+                        if cell < offset || cell >= offset + days {
+                            Color.clear.frame(maxWidth: .infinity).frame(height: 44)
+                        } else if let date = calendar.date(byAdding: .day, value: cell - offset, to: startOfMonth) {
+                            dayButton(date).frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func monthButton(_ symbol: String, title: String, direction: Int) -> some View {
@@ -208,7 +222,7 @@ struct RecordingCalendarContent: View {
             if kind == .weight { newWeight = true } else { newWater = true }
         } label: {
             Label(calendar.isDateInToday(selectedDay) ? "记录" : "补录", systemImage: "plus")
-                .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                .font(.subheadline.weight(.semibold)).frame(minHeight: 30)
         }
         .buttonStyle(.glass)
     }

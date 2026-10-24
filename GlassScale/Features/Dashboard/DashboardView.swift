@@ -50,13 +50,13 @@ struct DashboardView: View {
             }
             Spacer(minLength: 0)
             Button { showCalendar = true } label: {
-                Image(systemName: "calendar").font(.title3.weight(.medium)).frame(width: 48, height: 48)
+                Image(systemName: "calendar").font(.title3.weight(.medium)).frame(width: 32, height: 32)
             }
             .buttonStyle(.glass).buttonBorderShape(.circle).accessibilityLabel("打开日历与补录")
             Menu {
                 Button("设置体重目标", systemImage: "target") { showGoal = true }
             } label: {
-                Image(systemName: "ellipsis").font(.title3.weight(.medium)).frame(width: 44, height: 44)
+                Image(systemName: "ellipsis").font(.title3.weight(.medium)).frame(width: 32, height: 32)
             }
             .buttonStyle(.glass).buttonBorderShape(.circle).accessibilityLabel("更多设置")
         }
