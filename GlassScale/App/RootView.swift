@@ -11,6 +11,7 @@ enum AppTab: Hashable {
 struct RootView: View {
     @Environment(WeightStore.self) private var store
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selection: AppTab = .dashboard
     @State private var pendingQuickAdd = false
     @State private var showRecoveryImport = false
@@ -52,7 +53,7 @@ struct RootView: View {
         .overlay {
             if let milestone = store.milestone {
                 CelebrationView(milestone: milestone) {
-                    withAnimation(.snappy) { store.consumeMilestone() }
+                    withAnimation(reduceMotion ? nil : .snappy) { store.consumeMilestone() }
                 }
                 .transition(.opacity)
             }
@@ -63,13 +64,16 @@ struct RootView: View {
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .task(id: toast) {
-                        try? await Task.sleep(for: .seconds(3))
-                        withAnimation(.snappy) { store.consumeToast() }
+                        do {
+                            try await Task.sleep(for: .seconds(UIAccessibility.isVoiceOverRunning ? 8 : 3))
+                        } catch { return }
+                        guard store.toast == toast else { return }
+                        withAnimation(reduceMotion ? nil : .snappy) { store.consumeToast() }
                     }
             }
         }
-        .animation(.snappy, value: store.milestone?.id)
-        .animation(.snappy, value: store.toast)
+        .animation(reduceMotion ? nil : .snappy, value: store.milestone?.id)
+        .animation(reduceMotion ? nil : .snappy, value: store.toast)
         .sheet(isPresented: $pendingQuickAdd) {
             EntryEditorView(mode: .create)
         }
@@ -107,7 +111,7 @@ struct RootView: View {
     private var tabs: some View {
         TabView(selection: $selection) {
             Tab("首页", systemImage: "house", value: AppTab.dashboard) {
-                DashboardView(onAdd: { pendingQuickAdd = true })
+                DashboardView(onAdd: { pendingQuickAdd = true }, onShowRecords: { selection = .history })
             }
 
             Tab("记录", systemImage: "calendar", value: AppTab.history) {

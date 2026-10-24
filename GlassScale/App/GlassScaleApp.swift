@@ -7,6 +7,9 @@ struct GlassScaleApp: App {
     init() {
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--ui-preview") {
+            if ProcessInfo.processInfo.arguments.contains("--ui-store-smoke") {
+                PreviewStoreChecks.runAndWriteReport()
+            }
             _store = State(initialValue: Self.previewStore())
         }
         #endif

@@ -4,9 +4,23 @@ struct DashboardView: View {
     @Environment(WeightStore.self) private var store
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onAdd: () -> Void
-    @State private var showCalendar = false
+    var onShowRecords: () -> Void = {}
+    @State private var calendarDay: CalendarSelection?
+    @State private var editingEntry: WeightEntry?
+    @State private var compactWidth = false
     @State private var showGoal = false
     @State private var showDetails = false
+
+    private struct CalendarSelection: Identifiable {
+        let date: Date
+        var id: Date { date }
+    }
+
+    private var usesCompactCards: Bool { compactWidth && !dynamicTypeSize.isAccessibilitySize }
+
+    private func openCalendar(_ day: Date = Date()) {
+        calendarDay = CalendarSelection(date: day)
+    }
 
     private var stats: WeightStats { store.stats }
     private var unit: WeightUnit { store.unit }
@@ -52,9 +66,10 @@ struct DashboardView: View {
                             HeroCard(stats: stats, goal: store.goal, baselineKg: store.baselineKg, unit: unit,
                                      projectedDate: stats.projectedGoalDate(goal: store.goal, baselineKg: store.baselineKg),
                                      latestEntry: latestEntry, recentEntries: store.recentEntries(days: 7),
-                                     dailyPolicy: store.settings.dailyWeightPolicy, onAdd: onAdd)
+                                     dailyPolicy: store.settings.dailyWeightPolicy,
+                                     compactLayout: usesCompactCards, onAdd: onAdd)
                         }
-                        WaterCard()
+                        WaterCard(compactLayout: usesCompactCards)
                         if !store.isEmpty { recentCard; trendCard; detailsCard }
                     }
                     .frame(maxWidth: AppDesign.Space.maximumContentWidth)
@@ -67,48 +82,67 @@ struct DashboardView: View {
                 .tint(AppDesign.Palette.action)
                 .scrollIndicators(.hidden)
                 .defaultScrollAnchor(previewScrollAnchor, for: .initialOffset)
+                .onGeometryChange(for: Bool.self) { $0.size.width <= 375 } action: { compactWidth = $0 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showCalendar) { RecordingCalendarView() }
+            .sheet(item: $calendarDay) { RecordingCalendarView(initialDate: $0.date) }
+            .sheet(item: $editingEntry) { EntryEditorView(mode: .edit($0)) }
             .sheet(isPresented: $showGoal) { GoalEditorView() }
+            .task {
+                #if DEBUG && targetEnvironment(simulator)
+                let arguments = ProcessInfo.processInfo.arguments
+                if arguments.contains("--ui-preview-calendar") {
+                    openCalendar(Calendar.current.date(byAdding: .day, value: -2, to: Date()) ?? Date())
+                } else if arguments.contains("--ui-preview-edit-record"), let entry = latestEntry {
+                    editingEntry = entry
+                }
+                #endif
+            }
         }
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: AppDesign.Space.sm) {
-            VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
-                Text(Date(), format: .dateTime.month().day().weekday(.wide))
+            Button { openCalendar() } label: {
+                VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
+                    HStack(spacing: AppDesign.Space.xs) {
+                        Text(Date(), format: .dateTime.month().day().weekday(.wide))
+                        Image(systemName: "chevron.down").font(.caption2).accessibilityHidden(true)
+                    }
                     .font(.subheadline).foregroundStyle(AppDesign.Palette.secondaryText)
-                Text("今天").font(AppDesign.TypeScale.pageTitle).accessibilityAddTraits(.isHeader)
+                    Text("今天").font(AppDesign.TypeScale.pageTitle).foregroundStyle(AppDesign.Palette.primaryText)
+                }
+                .frame(minHeight: AppDesign.Control.minimumTarget, alignment: .leading).contentShape(.rect)
             }
+            .buttonStyle(.plain).accessibilityLabel("今天，\(Date().formatted(date: .complete, time: .omitted))，打开日历与补录")
+            .accessibilityAddTraits(.isHeader)
             Spacer(minLength: AppDesign.Space.xs)
-            Button { showCalendar = true } label: { Image(systemName: "calendar").font(.system(size: AppDesign.Control.iconSize, weight: .medium)) }
+            Button { openCalendar() } label: { Image(systemName: "calendar").font(.system(size: AppDesign.Control.iconSize, weight: .medium)) }
                 .buttonStyle(AppSecondaryButtonStyle(iconOnly: true))
                 .accessibilityLabel("打开日历与补录")
-            Menu {
-                Button("设置体重目标", systemImage: "target") { showGoal = true }
-            } label: {
-                Image(systemName: "ellipsis").font(.system(size: AppDesign.Control.iconSize, weight: .medium))
-                    .frame(width: AppDesign.Control.minimumTarget, height: AppDesign.Control.minimumTarget)
-                    .foregroundStyle(AppDesign.Palette.action)
-                    .background(AppDesign.Palette.surface, in: .circle)
+            Button { showGoal = true } label: {
+                Image(systemName: "target").font(.system(size: AppDesign.Control.iconSize, weight: .medium))
             }
-            .accessibilityLabel("更多设置")
+            .buttonStyle(AppSecondaryButtonStyle(iconOnly: true)).accessibilityLabel("设置体重目标")
         }
     }
 
     @ViewBuilder private var recordingStrip: some View {
         let days = recordingDays
         if dynamicTypeSize.isAccessibilitySize {
-            Label("近 7 天，\(days.filter { $0.recorded }.count) 天有体重记录", systemImage: "checkmark.circle")
-                .font(.subheadline).foregroundStyle(AppDesign.Palette.secondaryText)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { openCalendar() } label: {
+                Label("近 7 天，\(days.filter { $0.recorded }.count) 天有体重记录，查看日历", systemImage: "calendar")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(AppSecondaryButtonStyle())
         } else {
-            HStack(spacing: AppDesign.Space.sm) {
+            ScrollView(.horizontal) {
+              HStack(spacing: AppDesign.Space.sm) {
                 ForEach(days.indices, id: \.self) { index in
                     let day = days[index]
                     let isToday = Calendar.current.isDateInToday(day.date)
-                    VStack(spacing: AppDesign.Space.xs) {
+                    Button { openCalendar(day.date) } label: {
+                      VStack(spacing: AppDesign.Space.xs) {
                         Text(isToday ? "今天" : day.date.formatted(.dateTime.weekday(.narrow)))
                             .font(.caption2).foregroundStyle(AppDesign.Palette.secondaryText)
                         ZStack {
@@ -122,12 +156,17 @@ struct DashboardView: View {
                         }
                         .foregroundStyle(isToday ? AppDesign.Palette.onAction : day.recorded ? AppDesign.Palette.success : AppDesign.Palette.secondaryText)
                         .frame(width: 30, height: 30)
+                      }
+                      .frame(minWidth: AppDesign.Control.minimumTarget, minHeight: 52)
+                      .contentShape(.rect)
                     }
-                    .frame(maxWidth: .infinity)
-                    .accessibilityElement(children: .ignore)
+                    .buttonStyle(RecordingDayButtonStyle())
                     .accessibilityLabel("\(day.date.formatted(date: .complete, time: .omitted))，\(day.recorded ? "已有" : "尚无")体重记录")
+                    .accessibilityHint("打开当天记录，支持查看、编辑和补录")
                 }
+              }
             }
+            .scrollIndicators(.hidden).defaultScrollAnchor(.trailing)
         }
     }
 
@@ -153,15 +192,22 @@ struct DashboardView: View {
         AppSurface {
             VStack(alignment: .leading, spacing: AppDesign.Space.md) {
                 ViewThatFits(in: .horizontal) {
-                    HStack { Text("最近记录").font(.headline); Spacer(); streakText }
-                    VStack(alignment: .leading, spacing: AppDesign.Space.xs) { Text("最近记录").font(.headline); streakText }
+                    HStack { Text("最近记录").font(.headline); Spacer(); allRecordsButton }
+                    VStack(alignment: .leading, spacing: AppDesign.Space.xs) { Text("最近记录").font(.headline); allRecordsButton }
                 }
+                streakText
                 ForEach(Array(store.entries.suffix(3).reversed())) { entry in
-                    recentRow(entry)
+                    Button { editingEntry = entry } label: { recentRow(entry).contentShape(.rect) }
+                        .buttonStyle(.plain).accessibilityHint("查看或编辑这条体重记录")
                     if entry.id != store.entries.suffix(3).first?.id { Divider() }
                 }
             }
         }
+    }
+
+    private var allRecordsButton: some View {
+        Button(action: onShowRecords) { Label("全部记录", systemImage: "chevron.right") }
+            .buttonStyle(AppSecondaryButtonStyle())
     }
 
     private var streakText: some View {
@@ -181,7 +227,10 @@ struct DashboardView: View {
                 }
             }
             Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.caption).foregroundStyle(AppDesign.Palette.secondaryText).accessibilityHidden(true)
         }
+        .frame(minHeight: AppDesign.Control.minimumTarget)
+        .padding(.vertical, AppDesign.Space.xs)
         .accessibilityElement(children: .combine)
     }
 

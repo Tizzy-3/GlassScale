@@ -86,6 +86,13 @@ final class WeightStore {
 
     var isEmpty: Bool { entries.isEmpty }
 
+    /// 读取旧记录可静默识别成就；打开页面不会触发落盘或庆祝。
+    var achievementUnlocks: [AchievementUnlock] {
+        _ = currentDay
+        return AchievementEngine.mergedUnlocks(existing: settings.achievementUnlocks,
+                                               earnedIDs: earnedAchievementIDs())
+    }
+
     // MARK: - 喝水
 
     /// 今天的喝水记录（按时间升序）
@@ -109,22 +116,35 @@ final class WeightStore {
 
     @discardableResult
     func saveWater(ml: Int, at date: Date, id: UUID? = nil) -> Bool {
-        guard (1...10000).contains(ml), date <= Date() else { return false }
+        let now = Date()
+        guard (1...10000).contains(ml), date <= now else { return false }
         let previous = waterEntries
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
+        let isNew = id.map { value in !previous.contains { $0.id == value } } ?? true
+        let latestBefore = previous.last { $0.date <= now }
+        let isLive = isNew && Calendar.current.isDate(date, inSameDayAs: now)
+            && date >= (latestBefore?.date ?? .distantPast)
         let wasBelowGoal = todayWaterMl < settings.waterGoalMl
         waterEntries = RecordOperations.upsertWater(WaterEntry(id: id ?? UUID(), date: date, ml: ml), in: waterEntries)
-        guard persistNow() else { waterEntries = previous; return false }
+        let newlyUnlocked = updateAchievementLedger(ownedBefore: ownedBefore, earnedAt: isLive ? now : nil)
+        guard persistNow() else { waterEntries = previous; settings = previousSettings; return false }
         refreshReminders()
-        if wasBelowGoal && todayWaterMl >= settings.waterGoalMl {
-            toast = "💧 今日喝水目标达成，继续保持！"
+        if isLive, !newlyUnlocked.isEmpty {
+            presentAchievementFeedback(newlyUnlocked)
+        } else if isLive && wasBelowGoal && todayWaterMl >= settings.waterGoalMl {
+            toast = "今日喝水已达标，记录已保存"
         }
         return true
     }
 
     func deleteWater(_ entry: WaterEntry) {
         let previous = waterEntries
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         waterEntries.removeAll { $0.id == entry.id }
-        if !persistNow() { waterEntries = previous }
+        updateAchievementLedger(ownedBefore: ownedBefore)
+        if !persistNow() { waterEntries = previous; settings = previousSettings }
         refreshReminders()
     }
 
@@ -166,12 +186,27 @@ final class WeightStore {
     /// 仅按记录 ID 更新；同一天新增的早晚记录分别保留。
     @discardableResult
     func save(entry: WeightEntry, silently: Bool = false) -> WeightEntry? {
+        let now = Date()
         let previous = entries
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
+        let calendar = Calendar.current
+        let isNew = !previous.contains { $0.id == entry.id }
+        let latestBefore = previous.last { $0.date <= now }
+        let isLive = !silently && isNew && entry.date <= now
+            && calendar.isDate(entry.date, inSameDayAs: now)
+            && entry.date >= (latestBefore?.date ?? .distantPast)
+        let isFirstToday = !previous.contains { $0.date <= now && calendar.isDate($0.date, inSameDayAs: now) }
         entries = RecordOperations.upsertWeight(entry, in: entries)
-        guard persistNow() else { entries = previous; return nil }
+        let newlyUnlocked = updateAchievementLedger(ownedBefore: ownedBefore, earnedAt: isLive ? now : nil)
+        guard persistNow() else { entries = previous; settings = previousSettings; return nil }
 
-        if !silently {
-            checkMilestones(for: entry)
+        if isLive && (isFirstToday || newlyUnlocked.contains(where: { $0.id == .goalReached })) {
+            if !newlyUnlocked.isEmpty {
+                presentAchievementFeedback(newlyUnlocked)
+            } else {
+                presentWeightEncouragement(for: entry, previous: previous)
+            }
         }
         refreshReminders()
         return entry
@@ -179,23 +214,33 @@ final class WeightStore {
 
     func delete(_ entry: WeightEntry) {
         let previous = entries
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         entries.removeAll { $0.id == entry.id }
-        if !persistNow() { entries = previous }
+        updateAchievementLedger(ownedBefore: ownedBefore)
+        if !persistNow() { entries = previous; settings = previousSettings }
         refreshReminders()
     }
 
     func delete(at offsets: IndexSet, in group: [WeightEntry]) {
         let previous = entries
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         let ids = offsets.map { group[$0].id }
         entries.removeAll { ids.contains($0.id) }
-        if !persistNow() { entries = previous }
+        updateAchievementLedger(ownedBefore: ownedBefore)
+        if !persistNow() { entries = previous; settings = previousSettings }
         refreshReminders()
     }
 
     func replaceAll(_ newEntries: [WeightEntry]) {
+        let previous = entries
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         entries = newEntries
         sortEntries()
-        persist()
+        updateAchievementLedger(ownedBefore: ownedBefore)
+        if !persistNow() { entries = previous; settings = previousSettings }
     }
 
     // MARK: - 导入
@@ -205,9 +250,14 @@ final class WeightStore {
     @discardableResult
     func importEntries(_ newEntries: [WeightEntry]) -> (added: Int, skipped: Int) {
         let previous = entries
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         let result = RecordOperations.mergeWeights(newEntries, into: entries)
         entries = result.entries
-        if result.added > 0, !persistNow() { entries = previous; return (0, result.skipped) }
+        if result.added > 0 {
+            updateAchievementLedger(ownedBefore: ownedBefore)
+            if !persistNow() { entries = previous; settings = previousSettings; return (0, result.skipped) }
+        }
         refreshReminders()
         return (result.added, result.skipped)
     }
@@ -216,13 +266,17 @@ final class WeightStore {
     func importBackupRecords(_ payload: Persistence.Payload) -> (weights: Int, waters: Int)? {
         let previousWeights = entries
         let previousWaters = waterEntries
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         let weights = RecordOperations.mergeWeights(payload.entries, into: entries)
         let waters = RecordOperations.mergeWaters(payload.waterEntries, into: waterEntries)
         entries = weights.entries
         waterEntries = waters.entries
+        updateAchievementLedger(ownedBefore: ownedBefore + payload.settings.achievementUnlocks)
         guard persistNow() else {
             entries = previousWeights
             waterEntries = previousWaters
+            settings = previousSettings
             return nil
         }
         refreshReminders()
@@ -276,17 +330,25 @@ final class WeightStore {
     // MARK: - 目标与档案
 
     func setGoal(targetWeightKg: Double?, targetDate: Date?) {
+        let previous = goal
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         if let targetWeightKg, let targetDate {
             goal = WeightGoal(targetWeightKg: targetWeightKg, targetDate: targetDate)
         } else {
             goal = nil
         }
-        persist()
+        updateAchievementLedger(ownedBefore: ownedBefore)
+        if !persistNow() { goal = previous; settings = previousSettings }
     }
 
     func updateProfile(_ profile: BodyProfile) {
+        let previous = self.profile
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         self.profile = profile
-        persist()
+        updateAchievementLedger(ownedBefore: ownedBefore)
+        if !persistNow() { self.profile = previous; settings = previousSettings }
     }
 
     // MARK: - 头像
@@ -307,7 +369,9 @@ final class WeightStore {
     @discardableResult
     func updateSettings(_ settings: AppSettings) -> Bool {
         let previous = self.settings
+        let ownedBefore = achievementUnlocks
         self.settings = settings
+        updateAchievementLedger(ownedBefore: ownedBefore + settings.achievementUnlocks)
         Theme.current = settings.theme
         guard persistNow() else { self.settings = previous; Theme.current = previous.theme; return false }
         refreshReminders()
@@ -327,78 +391,91 @@ final class WeightStore {
     func consumeMilestone() { milestone = nil }
     func consumeToast() { toast = nil }
 
-    /// 记录新体重后检查是否跨过了「每 5 kg 一个」或「达成目标」这类节点。
-    private func checkMilestones(for entry: WeightEntry) {
-        guard let baseline = baselineKg else { return }
-        let current = entry.weightKg
+    private func earnedAchievementIDs() -> Set<AchievementID> {
+        AchievementEngine.earnedIDs(entries: entries, goal: goal, baselineKg: baselineKg,
+                                    waterEntries: waterEntries, waterGoalMl: settings.waterGoalMl,
+                                    policy: settings.dailyWeightPolicy)
+    }
 
-        if let goal = goal {
-            let target = goal.targetWeightKg
-            // 只有真正越过目标线才算达成：减重目标要求当前 <= 目标，增重目标要求当前 >= 目标
-            // （之前用的乘积公式，只要朝目标方向动一下就误判为达成）
-            func reached(_ weight: Double) -> Bool {
-                if target < baseline { return weight <= target }
-                if target > baseline { return weight >= target }
-                return false
-            }
-            if reached(current) {
-                // 之前没达成过才庆祝，避免之后每记一次体重就弹一次
-                let wasReachedBefore = entries
-                    .filter { $0.id != entry.id }
-                    .contains { reached($0.weightKg) }
-                if !wasReachedBefore {
-                    milestone = Milestone(
-                        kind: .goal,
-                        title: "达成目标",
-                        detail: "你现在是 \(Fmt.weight(current, unit))，已抵达 \(Fmt.weight(target, unit))",
-                        symbol: "trophy.fill"
-                    )
-                }
-                return
-            }
+    /// Mutate the ledger only as part of an explicit data transaction. Callers keep
+    /// their previous settings and roll this back together with the record on failure.
+    @discardableResult
+    private func updateAchievementLedger(ownedBefore: [AchievementUnlock], earnedAt: Date? = nil) -> [AchievementUnlock] {
+        let previousIDs = Set(ownedBefore.map(\.id))
+        let updated = AchievementEngine.mergedUnlocks(existing: ownedBefore,
+                                                      earnedIDs: earnedAchievementIDs(), earnedAt: earnedAt)
+        settings.achievementUnlocks = updated
+        return updated.filter { !previousIDs.contains($0.id) }
+    }
+
+    private func presentAchievementFeedback(_ unlocks: [AchievementUnlock]) {
+        let priority: [AchievementID] = [.goalReached, .progress75, .threeKilograms, .progress50,
+                                         .firstKilogram, .progress25, .streak30, .streak14,
+                                         .streak7, .streak3, .waterGoal, .firstWeight]
+        let ids = Set(unlocks.map(\.id))
+        guard let id = priority.first(where: { ids.contains($0) }),
+              let definition = AchievementEngine.catalog.first(where: { $0.id == id }) else { return }
+        let stages: Set<AchievementID> = [.goalReached, .progress25, .progress50, .progress75,
+                                         .firstKilogram, .threeKilograms]
+        if stages.contains(id) {
+            toast = nil
+            milestone = Milestone(kind: id == .goalReached ? .goal : .achievement(id),
+                                  title: definition.displayTitle(unit: unit),
+                                  detail: definition.displayDetail(unit: unit), symbol: definition.symbol)
+        } else {
+            toast = "解锁成就：\(definition.displayTitle(unit: unit))"
         }
+    }
 
-        let stepKg = 5.0
-        let achievedSteps = Int(abs(baseline - current) / stepKg)
-        guard achievedSteps >= 1 else { return }
-
-        // 只在「刷新纪录」时庆祝，避免同一步反复弹
-        let bestBefore = entries
-            .filter { $0.id != entry.id }
-            .compactMap { Int(abs(baseline - $0.weightKg) / stepKg) }
-            .max() ?? 0
-        guard achievedSteps > bestBefore else { return }
-
-        milestone = Milestone(
-            kind: .step(achievedSteps),
-            title: "累计\(current <= baseline ? "减" : "增")重 \(achievedSteps * Int(stepKg)) kg",
-            detail: "从 \(Fmt.weight(baseline, unit)) 到 \(Fmt.weight(current, unit))，继续保持",
-            symbol: "flame.fill"
-        )
+    private func presentWeightEncouragement(for entry: WeightEntry, previous: [WeightEntry]) {
+        guard let goal, let baseline = baselineKg, abs(goal.targetWeightKg - baseline) > 0.0001 else {
+            toast = "今天的体重已记录，按自己的节奏继续"
+            return
+        }
+        let progress = goal.progress(startKg: baseline, currentKg: entry.weightKg)
+        if progress >= 1 {
+            toast = "已达成目标，继续按自己的节奏记录"
+        } else if let prior = previous.last(where: { $0.date <= entry.date }),
+                  progress > goal.progress(startKg: baseline, currentKg: prior.weightKg) {
+            toast = "今天已记录，正在接近你设定的目标"
+        } else {
+            toast = "今天的体重已记录，按自己的节奏继续"
+        }
     }
 
     // MARK: - 示例数据
 
     func loadSampleData() {
+        let previousEntries = entries
+        let previousProfile = profile
+        let previousGoal = goal
+        let previousSettings = settings
+        let ownedBefore = achievementUnlocks
         let generator = SampleData.make(count: 90)
-        replaceAll(generator)
+        entries = generator
+        sortEntries()
         if profile.baselineKg == nil {
             profile.baselineKg = generator.first?.weightKg
         }
         if goal == nil, let last = generator.last?.weightKg {
             goal = WeightGoal(targetWeightKg: (last - 8).rounded(), targetDate: Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date())
         }
+        updateAchievementLedger(ownedBefore: ownedBefore)
         if persistNow() { refreshReminders() }
+        else { entries = previousEntries; profile = previousProfile; goal = previousGoal; settings = previousSettings }
     }
 
     func clearAll() {
         let previousEntries = entries
         let previousWater = waterEntries
+        let previousSettings = settings
+        let previousMilestone = milestone
         entries = []
         waterEntries = []
+        settings.achievementUnlocks = []
         milestone = nil
         if persistNow() { refreshReminders() }
-        else { entries = previousEntries; waterEntries = previousWater }
+        else { entries = previousEntries; waterEntries = previousWater; settings = previousSettings; milestone = previousMilestone }
     }
 
     // MARK: - 落盘
@@ -444,6 +521,7 @@ struct Milestone: Identifiable, Equatable {
     enum Kind: Equatable {
         case step(Int)
         case goal
+        case achievement(AchievementID)
     }
 
     let id = UUID()

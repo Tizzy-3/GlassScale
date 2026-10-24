@@ -58,7 +58,17 @@ capture() {
   return 1
 }
 
-capture home light
+capture home light --ui-store-smoke
+DATA_DIR=$(xcrun simctl get_app_container "$DEVICE_ID" "$BUNDLE_ID" data)
+cp "$DATA_DIR/Documents/ui-store-checks.json" "$OUT/ui-store-checks.json"
+python3 - "$OUT/ui-store-checks.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    report = json.load(f)
+print('Simulator store checks:', len(report['checks']), 'checks;', len(report['failures']), 'failures')
+assert len(report['checks']) >= 33, 'Incomplete Store smoke report'
+assert not report['failures'], report['failures']
+PY
 capture home dark
 capture home-bottom light --ui-preview-bottom
 capture home-bottom dark --ui-preview-bottom
@@ -68,6 +78,9 @@ xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
 capture home-accessibility light
 capture home-water-accessibility light --ui-preview-middle
 xcrun simctl ui "$DEVICE_ID" content_size large
+capture home-calendar light --ui-preview-calendar
+capture home-edit light --ui-preview-edit-record
+capture home-water-undo light --ui-preview-water-undo
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 
 # Use a real 375pt simulator to check compact width, without rebuilding the app.
@@ -86,6 +99,7 @@ xcrun simctl status_bar "$DEVICE_ID" override --time '9:41' --dataNetwork wifi -
 xcrun simctl install "$DEVICE_ID" "$APP"
 capture home-small light --ui-preview-pounds
 capture home-small dark --ui-preview-pounds
+capture home-small-details light --ui-preview-pounds --ui-preview-weight-details
 capture home-small-bottom light --ui-preview-pounds --ui-preview-bottom
 xcrun simctl ui "$DEVICE_ID" content_size extra-extra-extra-large
 capture home-small-xxxlarge light --ui-preview-pounds

@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Existing water actions with success-only visual feedback; persistence stays in WeightStore.
 struct WaterCard: View {
+    var compactLayout = false
     @Environment(WeightStore.self) private var store
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -13,21 +14,22 @@ struct WaterCard: View {
     @State private var isAcknowledging = false
     @State private var acknowledgment = 0
     @State private var lastCupMl = 0
+    @State private var lastRecordedEntry: WaterEntry?
 
     private var drunk: Int { store.todayWaterMl }
     private var goal: Int { store.settings.waterGoalMl }
     private var progress: Double { goal > 0 ? min(1, Double(drunk) / Double(goal)) : 0 }
 
     var body: some View {
-        AppSurface(.hydration) {
-            VStack(alignment: .leading, spacing: AppDesign.Space.md) {
+        AppSurface(.hydration, padding: compactLayout ? AppDesign.Space.md : AppDesign.Space.lg) {
+            VStack(alignment: .leading, spacing: compactLayout ? AppDesign.Space.sm : AppDesign.Space.md) {
                 if dynamicTypeSize.isAccessibilitySize {
                     summary
-                    WaterCupView(progress: progress, isAcknowledging: isAcknowledging).frame(width: 80, height: 88)
+                    companion
                 } else {
                     HStack(spacing: AppDesign.Space.md) {
                         summary
-                        WaterCupView(progress: progress, isAcknowledging: isAcknowledging).frame(width: 80, height: 88)
+                        companion
                     }
                 }
                 progressBar
@@ -38,13 +40,21 @@ struct WaterCard: View {
         .sensoryFeedback(.selection, trigger: acknowledgment)
         .task(id: acknowledgment) {
             guard acknowledgment > 0 else { return }
-            do { try await Task.sleep(for: .seconds(1.6)) } catch { return }
+            #if DEBUG && targetEnvironment(simulator)
+            if ProcessInfo.processInfo.arguments.contains("--ui-preview-water-undo") { return }
+            #endif
+            do { try await Task.sleep(for: .seconds(6)) } catch { return }
             withAnimation(reduceMotion ? nil : AppDesign.Motion.state) { isAcknowledging = false }
         }
         .sheet(isPresented: $showGoalSheet) { WaterGoalSheet() }
         .sheet(isPresented: $showCustomSheet) { WaterEntryEditorView() }
         .sheet(isPresented: $showHistory) { WaterHistoryView() }
         .sheet(isPresented: $showCups) { WaterCupSettingsView() }
+        .task {
+            #if DEBUG && targetEnvironment(simulator)
+            if ProcessInfo.processInfo.arguments.contains("--ui-preview-water-undo") { recordWater(250) }
+            #endif
+        }
     }
 
     private var summary: some View {
@@ -81,15 +91,42 @@ struct WaterCard: View {
                 .accessibilityLabel("喝水设置与撤销")
             }
             reading
-            if isAcknowledging {
-                Label("已记录 \(lastCupMl) ml", systemImage: "checkmark.circle.fill")
-                    .font(.caption).foregroundStyle(AppDesign.Palette.success)
-            } else {
-                Text(progress >= 1 ? "今日已达标" : "已完成 \(Int(progress * 100))%")
-                    .font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+            if !compactLayout {
+                if isAcknowledging {
+                    Label("已记录 \(lastCupMl) ml", systemImage: "checkmark.circle.fill")
+                        .font(.caption).foregroundStyle(AppDesign.Palette.success)
+                } else {
+                    Text(progress >= 1 ? "今日已达标" : "已完成 \(Int(progress * 100))%")
+                        .font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var companion: some View {
+        VStack(spacing: 0) {
+            if isAcknowledging, let entry = lastRecordedEntry {
+                WaterCupView(progress: progress, isAcknowledging: true).frame(width: 44, height: 44)
+                Button { undoRecordedEntry(entry) } label: {
+                    Text("撤销").font(.caption.weight(.semibold)).frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain).foregroundStyle(AppDesign.Palette.action)
+                .disabled(!store.waterEntries.contains { $0.id == entry.id })
+                .accessibilityLabel("撤销刚才记录的 \(entry.ml) 毫升")
+            } else {
+                WaterCupView(progress: progress).frame(width: compactLayout ? 64 : 80, height: 88)
+            }
+        }
+        .frame(width: compactLayout ? 64 : 80, height: 88)
+    }
+
+    private func undoRecordedEntry(_ entry: WaterEntry) {
+        guard store.waterEntries.contains(where: { $0.id == entry.id }) else { return }
+        store.deleteWater(entry)
+        guard !store.waterEntries.contains(where: { $0.id == entry.id }) else { return }
+        withAnimation(reduceMotion ? nil : AppDesign.Motion.state) { isAcknowledging = false }
+        lastRecordedEntry = nil
     }
 
     @ViewBuilder private var reading: some View {
@@ -151,9 +188,12 @@ struct WaterCard: View {
 
     private func recordWater(_ ml: Int) {
         let before = store.todayWaterMl
+        let previousIDs = Set(store.waterEntries.map(\.id))
         withAnimation(reduceMotion ? nil : AppDesign.Motion.progress) { store.logWater(ml: ml) }
-        guard store.todayWaterMl == before + ml else { return }
+        guard store.todayWaterMl == before + ml,
+              let saved = store.todayWaterEntries.first(where: { !previousIDs.contains($0.id) }) else { return }
         lastCupMl = ml
+        lastRecordedEntry = saved
         isAcknowledging = true
         acknowledgment += 1
     }

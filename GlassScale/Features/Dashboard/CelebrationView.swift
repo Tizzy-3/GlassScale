@@ -2,6 +2,9 @@ import SwiftUI
 
 /// 达成里程碑时的庆祝浮层。
 struct CelebrationView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AccessibilityFocusState private var titleFocused: Bool
     let milestone: Milestone
     let onDismiss: () -> Void
 
@@ -25,11 +28,14 @@ struct CelebrationView: View {
     ]
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.32)
+        GeometryReader { proxy in
+          ZStack {
+            Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture(perform: onDismiss)
+                .accessibilityHidden(true)
 
+            if !reduceMotion {
             ZStack {
                 ForEach(confetti) { item in
                     Image(systemName: item.symbol)
@@ -42,53 +48,64 @@ struct CelebrationView: View {
                 }
             }
             .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            }
 
             card
-                .scaleEffect(appeared ? 1 : 0.82)
+                .frame(maxHeight: min(proxy.size.height - 32, dynamicTypeSize.isAccessibilitySize ? proxy.size.height - 32 : 400))
+                .scaleEffect(reduceMotion || appeared ? 1 : 0.92)
                 .opacity(appeared ? 1 : 0)
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
-            withAnimation(.bouncy(duration: 0.5)) { appeared = true }
+            withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) { appeared = true }
         }
+        .sensoryFeedback(.success, trigger: appeared)
         .task {
-            try? await Task.sleep(for: .seconds(3.2))
-            onDismiss()
+            titleFocused = true
         }
     }
 
     private var card: some View {
-        VStack(spacing: 16) {
+        ScrollView {
+          VStack(spacing: AppDesign.Space.lg) {
             Image(systemName: milestone.symbol)
                 .font(.system(size: 44, weight: .semibold))
-                .foregroundStyle(Theme.brandGradient)
-                .symbolEffect(.bounce, value: appeared)
+                .foregroundStyle(AppDesign.Palette.action)
+                .symbolEffect(.bounce, value: reduceMotion ? false : appeared)
+                .accessibilityHidden(true)
 
             Text(milestone.title)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .font(.title2.weight(.bold))
                 .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader).accessibilityFocused($titleFocused)
 
             Text(milestone.detail)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppDesign.Palette.secondaryText)
                 .multilineTextAlignment(.center)
 
             Button("继续", systemImage: "checkmark") {
                 onDismiss()
             }
-            .buttonStyle(.glassProminent)
-            .buttonBorderShape(.capsule)
-            .tint(Theme.mint)
+            .buttonStyle(AppPrimaryButtonStyle())
             .padding(.top, 4)
         }
-        .padding(28)
-        .frame(maxWidth: 300)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .padding(.horizontal, 40)
+          .padding(AppDesign.Space.section)
+        }
+        .scrollBounceBehavior(.basedOnSize).scrollIndicators(.hidden)
+        .foregroundStyle(AppDesign.Palette.primaryText)
+        .frame(maxWidth: 520)
+        .background(AppDesign.Palette.surface, in: RoundedRectangle(cornerRadius: AppDesign.Radius.hero, style: .continuous))
+        .padding(.horizontal, AppDesign.Space.page)
+        .accessibilityAddTraits(.isModal)
     }
 }
 
 /// 轻量提示条。
 struct ToastView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let text: String
     @State private var appeared = false
 
@@ -101,9 +118,9 @@ struct ToastView: View {
             .glassEffect(.regular, in: .capsule)
             .shadow(color: .black.opacity(0.2), radius: 12, y: 6)
             .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 16)
+            .offset(y: reduceMotion || appeared ? 0 : 16)
             .onAppear {
-                withAnimation(.snappy) { appeared = true }
+                withAnimation(reduceMotion ? nil : .snappy) { appeared = true }
             }
     }
 }

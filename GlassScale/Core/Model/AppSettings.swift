@@ -127,6 +127,8 @@ struct AppSettings: Codable, Hashable {
     var dailyWeightPolicy: DailyWeightPolicy = .latest
     var waterCupSizes: [Int] = [250, 500]
     var reminders: ReminderSettings = ReminderSettings()
+    /// 已解锁的终身成就；随现有 JSON 与备份保存，旧数据默认为空。
+    var achievementUnlocks: [AchievementUnlock] = []
 
     // 手写解码：老版本 store.json 里没有 theme 等新字段，用 decodeIfPresent 保证升级不丢数据。
     private enum CodingKeys: String, CodingKey {
@@ -134,7 +136,7 @@ struct AppSettings: Codable, Hashable {
         case syncWriteToHealth, syncReadFromHealth
         case hasCompletedOnboarding, showsDemoData
         case waterGoalMl
-        case dailyWeightPolicy, waterCupSizes, reminders
+        case dailyWeightPolicy, waterCupSizes, reminders, achievementUnlocks
     }
 
     init() {}
@@ -154,6 +156,7 @@ struct AppSettings: Codable, Hashable {
         waterCupSizes = Array(NSOrderedSet(array: cups.filter { (1...10000).contains($0) }).array.compactMap { $0 as? Int }.prefix(4))
         if waterCupSizes.isEmpty { waterCupSizes = [250, 500] }
         reminders = try c.decodeIfPresent(ReminderSettings.self, forKey: .reminders) ?? ReminderSettings()
+        achievementUnlocks = try c.decodeIfPresent([AchievementUnlock].self, forKey: .achievementUnlocks) ?? []
     }
 }
 

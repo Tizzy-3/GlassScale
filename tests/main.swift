@@ -428,5 +428,175 @@ run("reminder migration clamps invalid time fields and schedule excludes exact b
                "weight time equal to now rolls forward to the next six days")
 }
 
+func achievements(
+    _ weights: [WeightEntry] = [], goal: WeightGoal? = nil, baseline: Double? = nil,
+    waters: [WaterEntry] = [], waterGoal: Int = 2000, policy: DailyWeightPolicy = .latest
+) -> Set<AchievementID> {
+    AchievementEngine.earnedIDs(entries: weights, goal: goal, baselineKg: baseline,
+                               waterEntries: waters, waterGoalMl: waterGoal, policy: policy,
+                               now: now, calendar: cal)
+}
+
+run("achievement catalog has twelve stable unique badges and complete categories") {
+    let ids = AchievementEngine.catalog.map(\.id)
+    try expect(ids.count == 12 && Set(ids) == Set(AchievementID.allCases), "each stable ID has exactly one catalog definition")
+    try expect(AchievementCategory.allCases.allSatisfy { category in
+        AchievementEngine.catalog.contains { $0.category == category }
+    }, "all three groups contain badges")
+    try expect(AchievementEngine.catalog.allSatisfy { !$0.title.isEmpty && !$0.detail.isEmpty && !$0.symbol.isEmpty },
+               "locked and owned badge copy is complete")
+}
+
+run("achievement direction follows configured loss or gain goal") {
+    let loss = WeightGoal(targetWeightKg: 70, targetDate: date(90))
+    let gain = WeightGoal(targetWeightKg: 90, targetDate: date(90))
+    let lossIDs = achievements([entry(80, day: -1), entry(77)], goal: loss, baseline: 80)
+    try expect(lossIDs.contains(.firstKilogram) && lossIDs.contains(.threeKilograms) && lossIDs.contains(.progress25),
+               "three kg toward a loss goal unlocks matching stages")
+    try expect(!lossIDs.contains(.progress50) && !lossIDs.contains(.goalReached), "partial progress is not a goal completion")
+    let away = achievements([entry(80, day: -1), entry(85)], goal: loss, baseline: 80)
+    try expect(away == [.firstWeight], "moving away from a loss goal does not earn weight progress")
+    let gainIDs = achievements([entry(80, day: -1), entry(85)], goal: gain, baseline: 80)
+    try expect(gainIDs.contains(.progress50) && gainIDs.contains(.threeKilograms), "gain direction is supported")
+    try expect(!achievements([entry(75)], goal: gain, baseline: 80).contains(.firstKilogram),
+               "weight loss is not rewarded when the configured goal is gain")
+}
+
+run("achievement threshold labels respect selected units without changing canonical stages") {
+    let first = AchievementEngine.catalog.first { $0.id == .firstKilogram }!
+    let third = AchievementEngine.catalog.first { $0.id == .threeKilograms }!
+    try expect(first.displayTitle(unit: .kilograms).contains("1 kg"), "kg title retains its canonical threshold")
+    try expect(first.displayTitle(unit: .jin).contains("2 斤") && third.displayDetail(unit: .jin).contains("6 斤"),
+               "jin copy converts both kg achievement thresholds")
+    try expect(first.displayTitle(unit: .pounds).contains("2.2 lb") && third.displayTitle(unit: .pounds).contains("6.6 lb"),
+               "pounds copy converts the actual kg milestones")
+    try expect(first.displayDetail(unit: .pounds).contains("1 kg"), "rounded pounds copy discloses the exact canonical unlock node")
+    let goalBadge = AchievementEngine.catalog.first { $0.id == .goalReached }!
+    try expect(goalBadge.displayTitle(unit: .pounds) == goalBadge.title && goalBadge.displayDetail(unit: .jin) == goalBadge.detail,
+               "non-weight thresholds keep their existing copy")
+}
+
+run("achievement progress requires a real goal and caps kg stages at planned distance") {
+    let weights = [entry(80, day: -1), entry(70)]
+    try expect(achievements(weights) == [.firstWeight], "no goal means no assumed weight direction")
+    let zero = WeightGoal(targetWeightKg: 80, targetDate: date(90))
+    try expect(achievements(weights, goal: zero, baseline: 80) == [.firstWeight], "zero-span goal cannot award free progress")
+    let small = WeightGoal(targetWeightKg: 79.5, targetDate: date(90))
+    let ids = achievements(weights, goal: small, baseline: 80)
+    try expect(ids.contains(.goalReached) && ids.contains(.progress75), "crossing the small goal completes its percentages")
+    try expect(!ids.contains(.firstKilogram) && !ids.contains(.threeKilograms), "excess loss cannot earn stages beyond the planned half kg")
+    let missingBaseline = achievements([entry(80, day: -1), entry(79)],
+                                      goal: WeightGoal(targetWeightKg: 76, targetDate: date(90)))
+    try expect(missingBaseline.contains(.firstKilogram) && missingBaseline.contains(.progress25),
+               "earliest daily weight is a fallback when baseline is absent")
+    try expect(achievements(weights, goal: small, baseline: .nan) == [.firstWeight], "nonfinite baseline does not produce progress")
+}
+
+run("achievement thresholds are inclusive and historical progress survives current fluctuations") {
+    let goal = WeightGoal(targetWeightKg: 76, targetDate: date(90))
+    let thresholds: [(Double, AchievementID)] = [(79, .progress25), (78, .progress50), (77, .progress75), (76, .goalReached)]
+    for (kg, expected) in thresholds {
+        try expect(achievements([entry(kg)], goal: goal, baseline: 80).contains(expected), "exact boundary \(kg) unlocks \(expected.rawValue)")
+    }
+    let historical = achievements([entry(76, day: -20), entry(81)], goal: goal, baseline: 80)
+    try expect(historical.contains(.goalReached), "recognition uses previously achieved daily progress, not only today's value")
+}
+
+run("achievement snapshots honor daily policy and exclude future or invalid readings") {
+    let goal = WeightGoal(targetWeightKg: 76, targetDate: date(90))
+    let sameDay = [entry(76, hour: 7), entry(80, hour: 8)]
+    try expect(!achievements(sameDay, goal: goal, baseline: 80).contains(.goalReached), "latest policy does not reward an earlier same-day low")
+    try expect(achievements(sameDay, goal: goal, baseline: 80, policy: .earliest).contains(.goalReached), "earliest policy chooses the first reading")
+    try expect(achievements(sameDay, goal: goal, baseline: 80, policy: .lowest).contains(.goalReached), "lowest policy chooses the lowest reading")
+    let future = [entry(76, day: 1), entry(76, hour: 13), entry(.nan), entry(-1)]
+    try expect(achievements(future, goal: goal, baseline: 80).isEmpty, "future/invalid data cannot unlock even firstWeight")
+    try expect(!achievements((0..<8).map { entry(80, hour: $0) }).contains(.streak3), "many readings on one day are still one recording day")
+}
+
+run("achievement streaks use unique historical calendar days and respect gaps") {
+    let thirty = (0..<30).map { entry(80, day: -60 + $0) }
+    let ids = achievements(Array(thirty.reversed()) + [thirty[4], thirty[8]])
+    try expect([AchievementID.streak3, .streak7, .streak14, .streak30].allSatisfy { ids.contains($0) },
+               "a historical 30-day run survives a recent recording gap and duplicate samples")
+    let gapped = [-8, -7, -5, -4, -2, -1, 0].map { entry(80, day: $0) }
+    try expect(achievements(gapped).contains(.streak3), "the most recent three calendar days qualify")
+    try expect(!achievements(gapped).contains(.streak7), "seven total days with gaps are not a seven-day run")
+    try expect(!achievements([entry(80, day: -1), entry(80), entry(80, day: 1)]).contains(.streak3),
+               "tomorrow's record cannot extend a streak")
+}
+
+run("achievement calendar injection handles DST day boundaries") {
+    var dstCalendar = Calendar(identifier: .gregorian)
+    dstCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+    func dstDate(_ day: Int, hour: Int) -> Date {
+        dstCalendar.date(from: DateComponents(year: 2026, month: 3, day: day, hour: hour))!
+    }
+    let weights = [WeightEntry(date: dstDate(7, hour: 22), weightKg: 80),
+                   WeightEntry(date: dstDate(8, hour: 1), weightKg: 80),
+                   WeightEntry(date: dstDate(8, hour: 23), weightKg: 80),
+                   WeightEntry(date: dstDate(9, hour: 1), weightKg: 80)]
+    let ids = AchievementEngine.earnedIDs(entries: weights, goal: nil, baselineKg: nil,
+                                        waterEntries: [], waterGoalMl: 2000,
+                                        now: dstDate(9, hour: 12), calendar: dstCalendar)
+    try expect(ids.contains(.streak3), "three local recording days cross the 23-hour DST day")
+    let sameLocalDay = [WeightEntry(date: dstDate(8, hour: 1), weightKg: 80),
+                        WeightEntry(date: dstDate(8, hour: 23), weightKg: 80)]
+    try expect(!AchievementEngine.earnedIDs(entries: sameLocalDay, goal: nil, baselineKg: nil,
+                                          waterEntries: [], waterGoalMl: 2000,
+                                          now: dstDate(9, hour: 12), calendar: dstCalendar).contains(.streak3),
+               "UTC dates cannot split one injected local day into multiple days")
+    let localWater = [WaterEntry(date: dstDate(8, hour: 1), ml: 1000), WaterEntry(date: dstDate(8, hour: 23), ml: 1000)]
+    try expect(AchievementEngine.earnedIDs(entries: [], goal: nil, baselineKg: nil,
+                                         waterEntries: localWater, waterGoalMl: 2000,
+                                         now: dstDate(9, hour: 12), calendar: dstCalendar).contains(.waterGoal),
+               "water aggregation also honors injected local days across different UTC dates")
+}
+
+run("water achievement aggregates each calendar day and ignores future / nonpositive entries") {
+    let waters = [WaterEntry(date: date(-3), ml: 1000), WaterEntry(date: date(-3, hour: 9), ml: 1000)]
+    try expect(achievements(waters: waters).contains(.waterGoal), "a historical day at its exact goal is recognized")
+    try expect(!achievements(waters: [WaterEntry(date: date(-1), ml: 1000), WaterEntry(date: date(0), ml: 1000)]).contains(.waterGoal),
+               "volume from different days cannot combine into a target")
+    try expect(!achievements(waters: [WaterEntry(date: date(1), ml: 3000), WaterEntry(date: date(0, hour: 13), ml: 3000), WaterEntry(date: date(0), ml: -2000)]).contains(.waterGoal),
+               "future and negative entries never earn water goal")
+    try expect(!achievements(waters: waters, waterGoal: 0).contains(.waterGoal), "disabled or malformed zero target cannot award a badge")
+    try expect(achievements(waters: [WaterEntry(date: date(0), ml: Int.max), WaterEntry(date: date(0), ml: Int.max)], waterGoal: Int.max).contains(.waterGoal),
+               "daily sum saturates safely instead of overflowing")
+}
+
+run("achievement ledger preserves ownership dates, deduplicates and follows catalog order") {
+    let oldDate = date(-20)
+    let existing = [AchievementUnlock(id: .waterGoal, earnedAt: oldDate),
+                    AchievementUnlock(id: .firstWeight),
+                    AchievementUnlock(id: .waterGoal, earnedAt: date(-19))]
+    let merged = AchievementEngine.mergedUnlocks(existing: existing, earnedIDs: [.firstWeight, .streak3, .waterGoal], earnedAt: now)
+    try expect(merged.map(\.id) == [.firstWeight, .streak3, .waterGoal], "ledger is unique and follows catalog order")
+    try expect(merged.first { $0.id == .waterGoal }?.earnedAt == oldDate, "existing earliest known ownership date is retained")
+    try expect(merged.first { $0.id == .firstWeight }?.earnedAt == nil, "unknown historical date is not replaced with today's save date")
+    try expect(merged.first { $0.id == .streak3 }?.earnedAt == now, "a newly earned badge receives the live save date")
+    let unchanged = AchievementEngine.mergedUnlocks(existing: merged, earnedIDs: [], earnedAt: date(5))
+    try expect(unchanged == merged, "fluctuations, individual deletions or a goal change cannot revoke persisted ownership")
+    let duplicate = AchievementEngine.mergedUnlocks(existing: [AchievementUnlock(id: .streak7), AchievementUnlock(id: .streak7, earnedAt: oldDate)], earnedIDs: [])
+    try expect(duplicate.count == 1 && duplicate.first?.earnedAt == oldDate, "a known existing date wins over an unknown duplicate")
+    try expect(AchievementEngine.mergedUnlocks(existing: [], earnedIDs: [.firstWeight]).first?.earnedAt == nil,
+               "historical recognition does not invent an exact unlock time")
+}
+
+run("achievement settings migrate old JSON and roundtrip with full backup payload") {
+    let decoder = JSONDecoder()
+    let legacy = try decoder.decode(AppSettings.self, from: Data("{}".utf8))
+    try expect(legacy.achievementUnlocks.isEmpty, "old settings have an empty persisted ledger")
+    var settings = legacy
+    settings.achievementUnlocks = [AchievementUnlock(id: .firstWeight), AchievementUnlock(id: .progress25, earnedAt: now)]
+    let encoded = try JSONEncoder().encode(settings)
+    let decodedSettings = try decoder.decode(AppSettings.self, from: encoded)
+    try expect(decodedSettings.achievementUnlocks == settings.achievementUnlocks,
+               "known and unknown achievement dates roundtrip through settings")
+    let payload = Persistence.Payload(entries: [entry(79)], profile: BodyProfile(), goal: nil,
+                                      settings: settings, waterEntries: [])
+    let restored = try decoder.decode(Persistence.Payload.self, from: JSONEncoder().encode(payload))
+    try expect(restored.settings.achievementUnlocks == settings.achievementUnlocks, "the existing full backup carries the ledger")
+}
+
 print("\(checks) checks, \(failures) failures; timezone \(TimeZone.current.identifier)")
 if failures > 0 { exit(1) }

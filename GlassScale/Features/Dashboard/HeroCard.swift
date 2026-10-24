@@ -30,7 +30,9 @@ struct HeroCard: View {
     var latestEntry: WeightEntry? = nil
     var recentEntries: [WeightEntry] = []
     var dailyPolicy: DailyWeightPolicy = .latest
+    var compactLayout = false
     var onAdd: () -> Void = {}
+    @State private var showCompactDetails = false
 
     private var progress: Double { stats.progress(goal: goal, baselineKg: baselineKg) ?? 0 }
     private var percent: Int { Int((progress * 100).rounded()) }
@@ -53,19 +55,50 @@ struct HeroCard: View {
                         reading
                         Spacer(minLength: 0)
                         if goal != nil { goalProgress }
+                        else if compactLayout {
+                            Button { showCompactDetails = true } label: { Image(systemName: "info.circle") }
+                                .buttonStyle(AppSecondaryButtonStyle(iconOnly: true)).accessibilityLabel("查看体重详情")
+                        }
                     }
                 }
-                sparkline
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: AppDesign.Space.md) { metricItems }
-                } else {
-                    HStack(alignment: .top, spacing: AppDesign.Space.md) { metricItems }
+                if !compactLayout {
+                    sparkline
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: AppDesign.Space.md) { metricItems }
+                    } else {
+                        HStack(alignment: .top, spacing: AppDesign.Space.md) { metricItems }
+                    }
                 }
                 Button(action: onAdd) { Label("记体重", systemImage: "plus") }
                     .buttonStyle(AppPrimaryButtonStyle())
             }
         }
         .animation(reduceMotion ? nil : AppDesign.Motion.progress, value: stats.currentKg)
+        .sheet(isPresented: $showCompactDetails) {
+            NavigationStack {
+                ScrollView {
+                    AppSurface(.weight) {
+                        VStack(alignment: .leading, spacing: AppDesign.Space.section) {
+                            sparkline
+                            if dynamicTypeSize.isAccessibilitySize {
+                                VStack(alignment: .leading, spacing: AppDesign.Space.md) { metricItems }
+                            } else {
+                                HStack(alignment: .top, spacing: AppDesign.Space.md) { metricItems }
+                            }
+                        }
+                    }
+                    .padding(AppDesign.Space.page)
+                }
+                .background(AppDesign.Palette.canvas).navigationTitle("体重详情")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showCompactDetails = false } } }
+            }
+        }
+        .task {
+            #if DEBUG && targetEnvironment(simulator)
+            if ProcessInfo.processInfo.arguments.contains("--ui-preview-weight-details") { showCompactDetails = true }
+            #endif
+        }
     }
 
     private var reading: some View {
@@ -112,9 +145,18 @@ struct HeroCard: View {
                            height: dynamicTypeSize.isAccessibilitySize ? 120 : 54)
                 Text("\(percent)%").font(.caption.weight(.semibold)).monospacedDigit()
             }
-            Text("目标进度").font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)
+            .accessibilityElement(children: .ignore).accessibilityLabel("目标完成百分之\(percent)")
+            if compactLayout {
+                Button { showCompactDetails = true } label: {
+                    HStack(spacing: 3) { Text("目标进度"); Image(systemName: "chevron.right").accessibilityHidden(true) }
+                        .font(.caption).frame(minHeight: AppDesign.Control.minimumTarget)
+                }
+                .buttonStyle(.plain).foregroundStyle(AppDesign.Palette.action)
+                .accessibilityLabel("目标进度与体重详情")
+            } else {
+                Text("目标进度").font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)
+            }
         }
-        .accessibilityElement(children: .ignore).accessibilityLabel("目标完成百分之\(percent)")
     }
 
     private var sparkline: some View {

@@ -13,6 +13,10 @@ struct RecordingCalendarView: View {
     @State private var kind: RecordingKind = .weight
     @State private var selectedDay = Calendar.current.startOfDay(for: Date())
 
+    init(initialDate: Date = Date()) {
+        _selectedDay = State(initialValue: Calendar.current.startOfDay(for: min(initialDate, Date())))
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {

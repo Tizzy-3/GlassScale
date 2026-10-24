@@ -163,9 +163,24 @@ struct AppSecondaryButtonStyle: ButtonStyle {
             .padding(.horizontal, iconOnly ? 0 : AppDesign.Space.md)
             .frame(minWidth: AppDesign.Control.minimumTarget, minHeight: AppDesign.Control.minimumTarget)
             .foregroundStyle(AppDesign.Palette.action)
-            .background(AppDesign.Palette.surface.opacity(configuration.isPressed ? 0.65 : 0.92), in: .capsule)
-            .overlay { Capsule().strokeBorder(AppDesign.Palette.border.opacity(0.8), lineWidth: 0.5) }
-            .opacity(configuration.isPressed ? 0.72 : 1)
+            .background(AppDesign.Palette.surface, in: .capsule)
+            .overlay {
+                Capsule().strokeBorder(configuration.isPressed ? AppDesign.Palette.action : AppDesign.Palette.border.opacity(0.8),
+                                       lineWidth: configuration.isPressed ? 1.5 : 0.5)
+            }
+            .animation(reduceMotion ? nil : AppDesign.Motion.press, value: configuration.isPressed)
+    }
+}
+
+/// Keeps the full date hit region without adding another capsule behind the day circle.
+struct RecordingDayButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(AppDesign.Palette.action.opacity(configuration.isPressed ? 0.08 : 0),
+                        in: RoundedRectangle(cornerRadius: AppDesign.Radius.compact, style: .continuous))
+            .scaleEffect(reduceMotion || !configuration.isPressed ? 1 : 0.97)
             .animation(reduceMotion ? nil : AppDesign.Motion.press, value: configuration.isPressed)
     }
 }
