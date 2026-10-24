@@ -15,12 +15,16 @@ struct RootView: View {
     @State private var selection: AppTab = .dashboard
     @State private var pendingQuickAdd = false
     @State private var showRecoveryImport = false
+    @State private var showAchievements = false
     private let clock = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     init() {
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--ui-preview-records") {
             _selection = State(initialValue: .history)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-preview-achievements") {
+            _showAchievements = State(initialValue: true)
         }
         #endif
     }
@@ -78,6 +82,7 @@ struct RootView: View {
             EntryEditorView(mode: .create)
         }
         .sheet(isPresented: $showRecoveryImport) { ImportSheet() }
+        .sheet(isPresented: $showAchievements) { AchievementsView() }
         .alert("数据存储提示", isPresented: Binding(
             get: { store.storageError != nil },
             set: { if !$0 { store.storageError = nil } }

@@ -419,9 +419,15 @@ final class WeightStore {
                                          .firstKilogram, .threeKilograms]
         if stages.contains(id) {
             toast = nil
+            let detail: String
+            if id == .goalReached, let goal {
+                detail = "已达到你设定的 \(Fmt.weight(goal.targetWeightKg, unit)) \(unit.symbol) 目标。\n为自己庆祝一下，接下来也按自己的节奏记录。"
+            } else {
+                detail = definition.displayDetail(unit: unit) + "\n这份进展已被记下，继续按自己的节奏前进。"
+            }
             milestone = Milestone(kind: id == .goalReached ? .goal : .achievement(id),
                                   title: definition.displayTitle(unit: unit),
-                                  detail: definition.displayDetail(unit: unit), symbol: definition.symbol)
+                                  detail: detail, symbol: definition.symbol)
         } else {
             toast = "解锁成就：\(definition.displayTitle(unit: unit))"
         }

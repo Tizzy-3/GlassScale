@@ -8,6 +8,7 @@ struct DashboardView: View {
     @State private var calendarDay: CalendarSelection?
     @State private var editingEntry: WeightEntry?
     @State private var compactWidth = false
+    @State private var showAchievements = false
     @State private var showGoal = false
     @State private var showDetails = false
 
@@ -70,6 +71,7 @@ struct DashboardView: View {
                                      compactLayout: usesCompactCards, onAdd: onAdd)
                         }
                         WaterCard(compactLayout: usesCompactCards)
+                        AchievementEntryRow { showAchievements = true }
                         if !store.isEmpty { recentCard; trendCard; detailsCard }
                     }
                     .frame(maxWidth: AppDesign.Space.maximumContentWidth)
@@ -88,6 +90,7 @@ struct DashboardView: View {
             .sheet(item: $calendarDay) { RecordingCalendarView(initialDate: $0.date) }
             .sheet(item: $editingEntry) { EntryEditorView(mode: .edit($0)) }
             .sheet(isPresented: $showGoal) { GoalEditorView() }
+            .sheet(isPresented: $showAchievements) { AchievementsView() }
             .task {
                 #if DEBUG && targetEnvironment(simulator)
                 let arguments = ProcessInfo.processInfo.arguments
@@ -165,8 +168,10 @@ struct DashboardView: View {
                     .accessibilityHint("打开当天记录，支持查看、编辑和补录")
                 }
               }
+              .padding(.horizontal, compactWidth ? AppDesign.Space.sm : 0)
             }
             .scrollIndicators(.hidden).defaultScrollAnchor(.trailing)
+            .padding(.horizontal, compactWidth ? -AppDesign.Space.page : 0)
         }
     }
 

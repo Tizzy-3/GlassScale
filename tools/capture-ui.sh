@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 
 OUT="$RUNNER_TEMP/glassscale-ui"
 mkdir -p "$OUT"
+xcrun swiftc tools/check-screenshot.swift -o "$RUNNER_TEMP/check-screenshot"
 xcrun simctl list devices available --json > "$OUT/available-devices.json"
 DEVICE_ID=$(python3 - "$OUT/available-devices.json" <<'PY'
 import json, sys
@@ -50,7 +51,7 @@ capture() {
   for attempt in 1 2 3 4 5 6; do
     sleep 8
     xcrun simctl io "$DEVICE_ID" screenshot "$OUT/$page-$appearance.png"
-    if [ "$(wc -c < "$OUT/$page-$appearance.png")" -gt 150000 ]; then
+    if "$RUNNER_TEMP/check-screenshot" "$OUT/$page-$appearance.png"; then
       return
     fi
   done
@@ -70,17 +71,18 @@ assert len(report['checks']) >= 33, 'Incomplete Store smoke report'
 assert not report['failures'], report['failures']
 PY
 capture home dark
-capture home-bottom light --ui-preview-bottom
-capture home-bottom dark --ui-preview-bottom
-# Empty/completed/alternate-theme states were reviewed in run49; this pass
-# concentrates on the corrected homepage, chart, accessibility and compact width.
+capture home-stale light --ui-preview-stale
+capture achievements light --ui-preview-achievements
+capture achievements dark --ui-preview-achievements
+capture achievement-history light --ui-preview-achievements --ui-preview-achievement-history --ui-preview-recent-achievement
+capture achievement-empty light --ui-preview-achievements --ui-preview-empty
+capture achievement-detail light --ui-preview-achievements --ui-preview-badge-detail
+capture goal-celebration light --ui-preview-goal-celebration
 xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
 capture home-accessibility light
-capture home-water-accessibility light --ui-preview-middle
+capture achievement-accessibility light --ui-preview-achievements
+capture goal-celebration-accessibility light --ui-preview-goal-celebration
 xcrun simctl ui "$DEVICE_ID" content_size large
-capture home-calendar light --ui-preview-calendar
-capture home-edit light --ui-preview-edit-record
-capture home-water-undo light --ui-preview-water-undo
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 
 # Use a real 375pt simulator to check compact width, without rebuilding the app.
@@ -98,11 +100,10 @@ xcrun simctl bootstatus "$DEVICE_ID" -b
 xcrun simctl status_bar "$DEVICE_ID" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
 xcrun simctl install "$DEVICE_ID" "$APP"
 capture home-small light --ui-preview-pounds
-capture home-small dark --ui-preview-pounds
 capture home-small-details light --ui-preview-pounds --ui-preview-weight-details
-capture home-small-bottom light --ui-preview-pounds --ui-preview-bottom
-xcrun simctl ui "$DEVICE_ID" content_size extra-extra-extra-large
-capture home-small-xxxlarge light --ui-preview-pounds
+capture achievement-small light --ui-preview-pounds --ui-preview-achievements
+xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
+capture achievement-small-accessibility light --ui-preview-achievements
 xcrun simctl ui "$DEVICE_ID" content_size large
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 printf 'Screenshots captured for %s using simulator %s\n' "$BUNDLE_ID" "$DEVICE_ID"

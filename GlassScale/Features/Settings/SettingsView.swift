@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var showReminders = false
     @State private var showWaterCups = false
     @State private var confirmRecovery = false
+    @State private var showAchievements = false
 
     private var unit: WeightUnit { store.unit }
 
@@ -27,6 +28,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: 18) {
                         profileHeader
+                        AchievementEntryRow { showAchievements = true }
                         archiveCard
                         healthCard
                         preferenceCard
@@ -48,15 +50,16 @@ struct SettingsView: View {
             .sheet(isPresented: $showThemePicker) { ThemePickerView() }
             .sheet(isPresented: $showReminders) { ReminderSettingsView() }
             .sheet(isPresented: $showWaterCups) { WaterCupSettingsView() }
+            .sheet(isPresented: $showAchievements) { AchievementsView() }
             .confirmationDialog("恢复最近自动备份？当前数据会先保留为备份文件。", isPresented: $confirmRecovery, titleVisibility: .visible) {
                 Button("恢复自动备份") { store.restoreAutomaticBackup() }
                 Button("取消", role: .cancel) {}
             }
-            .confirmationDialog("确定清空全部记录？此操作不可撤销。", isPresented: $confirmClear, titleVisibility: .visible) {
+            .confirmationDialog("确定清空体重、喝水记录和已解锁成就？此操作不可撤销。", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("清空", role: .destructive) { store.clearAll() }
                 Button("取消", role: .cancel) {}
             }
-            .confirmationDialog("载入示例数据会覆盖现有记录，确定继续？", isPresented: $confirmSample, titleVisibility: .visible) {
+            .confirmationDialog("示例数据会覆盖体重记录，并影响统计与成就展示，确定继续？", isPresented: $confirmSample, titleVisibility: .visible) {
                 Button("覆盖并载入", role: .destructive) { store.loadSampleData() }
                 Button("取消", role: .cancel) {}
             }

@@ -44,8 +44,18 @@ struct GlassScaleApp: App {
             WaterEntry(date: max(today, latest.addingTimeInterval(Double(index + 1) * -600)), ml: ml)
         }
         let empty = arguments.contains("--ui-preview-empty")
+        if arguments.contains("--ui-preview-stale") {
+            entries.removeAll { calendar.isDate($0.date, inSameDayAs: today) }
+        }
         store.restore(from: Persistence.Payload(entries: empty ? [] : entries, profile: profile,
                                                goal: empty ? nil : goal, settings: settings, waterEntries: empty ? [] : waters))
+        if !empty && (arguments.contains("--ui-preview-goal-celebration") || arguments.contains("--ui-preview-recent-achievement")) {
+            store.save(entry: WeightEntry(date: Date(), weightKg: goal.targetWeightKg))
+            if !arguments.contains("--ui-preview-goal-celebration") {
+                store.consumeMilestone()
+                store.consumeToast()
+            }
+        }
         return store
     }
     #endif

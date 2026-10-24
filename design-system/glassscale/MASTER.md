@@ -1,7 +1,7 @@
 # GlassScale native design system
 
 ## Scope and source
-Approved by the UI/UX review and the user's homepage implementation request. SwiftUI + Swift Charts on iOS 26. UI UX Pro Max `pro-rules.md`, UX touch/contrast guidance and SwiftUI Dynamic Type/reduced-motion guidance apply. Its automatic marketing-page layouts and web font suggestions were not adopted. No new framework, data model, service, persistence, statistical formula or reminder rule.
+Approved by the UI/UX review and the user's homepage implementation request. SwiftUI + Swift Charts on iOS 26. UI UX Pro Max `pro-rules.md`, UX touch/contrast guidance and SwiftUI Dynamic Type/reduced-motion guidance apply. Its automatic marketing-page layouts and web font suggestions were not adopted. The initial visual pass changed no data model. The later user-approved collectible-achievement extension adds a backwards-compatible settings ledger; original record models, statistical formulas, services and reminder rules remain in place. No new framework.
 
 The existing ocean/mint identity and all five theme choices remain. This system is opt-in: homepage first; existing pages keep legacy styles until separately reviewed. Native TabView owns navigation material, dimensions, system gestures and safe areas.
 
@@ -42,3 +42,6 @@ Press80-150ms; state transitions180-250ms; numeric/progress updates300-450ms. Ob
 
 ## Acceptance
 Existing two-timezone model/persistence regressions, iOS Release build, original simulator screenshots. Check actual tab clearance, cup controls, long numbers/units and accessibility reflow. Never present generated mockups as runtime screenshots. Report homepage results before moving to another page.
+
+## Collectible achievement extension
+Twelve vector badges grouped as recording/progress/hydration. Use existing action/success/secondary color roles, system type, card radius24 and spacing16. Locked states retain readable text and state labels; color alone never establishes ownership. Show a known unlock date or explicitly identify recognition from historical records. Use short feedback for routine achievements and a readable manually dismissible celebration for major goal stages. Honor Reduce Motion and largest Dynamic Type. Page content can scroll; add no tab, reward currency, ranking or paid mechanism.

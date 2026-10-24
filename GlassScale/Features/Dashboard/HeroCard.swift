@@ -35,6 +35,10 @@ struct HeroCard: View {
     @State private var showCompactDetails = false
 
     private var progress: Double { stats.progress(goal: goal, baselineKg: baselineKg) ?? 0 }
+    private var recordedToday: Bool { latestEntry.map { Calendar.current.isDateInToday($0.date) } ?? false }
+    private var readingTitle: String {
+        latestEntry == nil ? "暂无有效记录" : recordedToday ? "今日体重" : "上次体重"
+    }
     private var percent: Int { Int((progress * 100).rounded()) }
     private var points: [WeightEntry] { StatsEngine.dailyEntries(recentEntries, policy: dailyPolicy) }
     private var chartDomain: ClosedRange<Double> {
@@ -103,7 +107,7 @@ struct HeroCard: View {
 
     private var reading: some View {
         VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
-            Text("当前体重").font(AppDesign.TypeScale.label).foregroundStyle(AppDesign.Palette.secondaryText)
+            Text(readingTitle).font(AppDesign.TypeScale.label).foregroundStyle(AppDesign.Palette.secondaryText)
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
@@ -119,11 +123,14 @@ struct HeroCard: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("当前体重 \(Fmt.weight(stats.currentKg, unit)) \(unit.symbol)")
+            .accessibilityLabel("\(readingTitle) \(Fmt.weight(stats.currentKg, unit)) \(unit.symbol)")
             if let latestEntry {
                 Text(latestEntry.date, format: .dateTime.month().day().hour().minute())
                     .font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)
                     .accessibilityLabel("最近称重时间，\(latestEntry.date.formatted(date: .abbreviated, time: .shortened))")
+                if !recordedToday {
+                    Text("今天尚未记录").font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+                }
             }
         }
     }
