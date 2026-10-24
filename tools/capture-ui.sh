@@ -70,6 +70,12 @@ print('Simulator store checks:', len(report['checks']), 'checks;', len(report['f
 assert len(report['checks']) >= 33, 'Incomplete Store smoke report'
 assert not report['failures'], report['failures']
 PY
+if [ "${UI_CAPTURE_SCOPE:-full}" = achievement-followup ]; then
+  capture achievements light --ui-preview-achievements
+  capture goal-celebration light --ui-preview-goal-celebration
+  xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
+  capture goal-celebration-accessibility light --ui-preview-goal-celebration
+else
 capture home dark
 capture home-stale light --ui-preview-stale
 capture achievements light --ui-preview-achievements
@@ -82,6 +88,7 @@ xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
 capture home-accessibility light
 capture achievement-accessibility light --ui-preview-achievements
 capture goal-celebration-accessibility light --ui-preview-goal-celebration
+fi
 xcrun simctl ui "$DEVICE_ID" content_size large
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 
@@ -99,11 +106,18 @@ xcrun simctl boot "$DEVICE_ID"
 xcrun simctl bootstatus "$DEVICE_ID" -b
 xcrun simctl status_bar "$DEVICE_ID" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
 xcrun simctl install "$DEVICE_ID" "$APP"
+if [ "${UI_CAPTURE_SCOPE:-full}" = achievement-followup ]; then
+  capture home-small light --ui-preview-pounds
+  capture goal-celebration-small light --ui-preview-goal-celebration
+  xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
+  capture goal-celebration-small-accessibility light --ui-preview-goal-celebration
+else
 capture home-small light --ui-preview-pounds
 capture home-small-details light --ui-preview-pounds --ui-preview-weight-details
 capture achievement-small light --ui-preview-pounds --ui-preview-achievements
 xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
 capture achievement-small-accessibility light --ui-preview-achievements
+fi
 xcrun simctl ui "$DEVICE_ID" content_size large
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 printf 'Screenshots captured for %s using simulator %s\n' "$BUNDLE_ID" "$DEVICE_ID"

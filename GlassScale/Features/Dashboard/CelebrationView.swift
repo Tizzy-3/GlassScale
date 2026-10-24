@@ -68,7 +68,19 @@ struct CelebrationView: View {
     }
 
     private var card: some View {
-        ScrollView {
+        ViewThatFits(in: .vertical) {
+            cardContent.fixedSize(horizontal: false, vertical: true)
+            ScrollView { cardContent }
+                .scrollBounceBehavior(.basedOnSize).scrollIndicators(.hidden)
+        }
+        .foregroundStyle(AppDesign.Palette.primaryText)
+        .frame(maxWidth: 520)
+        .background(AppDesign.Palette.surface, in: RoundedRectangle(cornerRadius: AppDesign.Radius.hero, style: .continuous))
+        .padding(.horizontal, AppDesign.Space.page)
+        .accessibilityAddTraits(.isModal)
+    }
+
+    private var cardContent: some View {
           VStack(spacing: AppDesign.Space.lg) {
             Image(systemName: milestone.symbol)
                 .font(.system(size: 44, weight: .semibold))
@@ -93,13 +105,6 @@ struct CelebrationView: View {
             .padding(.top, 4)
         }
           .padding(AppDesign.Space.section)
-        }
-        .scrollBounceBehavior(.basedOnSize).scrollIndicators(.hidden)
-        .foregroundStyle(AppDesign.Palette.primaryText)
-        .frame(maxWidth: 520)
-        .background(AppDesign.Palette.surface, in: RoundedRectangle(cornerRadius: AppDesign.Radius.hero, style: .continuous))
-        .padding(.horizontal, AppDesign.Space.page)
-        .accessibilityAddTraits(.isModal)
     }
 }
 

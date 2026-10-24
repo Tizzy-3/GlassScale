@@ -72,7 +72,7 @@ struct AchievementsView: View {
                 #endif
             }
         }
-        .tint(AppDesign.Palette.action)
+        .tint(AppDesign.Palette.textAction)
     }
 
     private func progressHeader(ownedCount: Int) -> some View {
@@ -330,7 +330,7 @@ private struct AchievementDetail: View {
             .navigationTitle("成就详情").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
-        .tint(AppDesign.Palette.action)
+        .tint(AppDesign.Palette.textAction)
     }
 }
 

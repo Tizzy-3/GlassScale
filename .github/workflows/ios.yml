@@ -93,6 +93,9 @@ jobs:
         if: github.ref_name == 'ui/floating-glass-preview'
         continue-on-error: true
         timeout-minutes: 24
+        env:
+          # Small visual follow-ups reuse the reviewed full matrix; builds and Store checks still run.
+          UI_CAPTURE_SCOPE: ${{ contains(github.event.head_commit.message, '[ui-focus]') && 'achievement-followup' || 'full' }}
         run: bash tools/capture-ui.sh
 
       - name: 上传 UI 截图与诊断
