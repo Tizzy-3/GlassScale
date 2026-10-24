@@ -3,7 +3,7 @@ name: Build unsigned IPA
 # push 到 main 分支或手动点 Run workflow 都会触发编译
 on:
   push:
-    branches: [main, feature/daily-recording]
+    branches: [main, feature/daily-recording, ui/floating-glass-preview]
   pull_request:
   workflow_dispatch:
 
@@ -88,3 +88,17 @@ jobs:
           name: GlassScale-unsigned-ipa
           path: ${{ runner.temp }}/ipa/GlassScale-unsigned.ipa
           if-no-files-found: error
+
+      - name: 渲染 iOS 26 实际界面
+        if: github.ref_name == 'ui/floating-glass-preview'
+        continue-on-error: true
+        timeout-minutes: 18
+        run: bash tools/capture-ui.sh
+
+      - name: 上传 UI 截图与诊断
+        if: always() && github.ref_name == 'ui/floating-glass-preview'
+        uses: actions/upload-artifact@v4
+        with:
+          name: GlassScale-ui-screenshots
+          path: ${{ runner.temp }}/glassscale-ui
+          if-no-files-found: warn

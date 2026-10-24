@@ -2,245 +2,224 @@ import SwiftUI
 
 struct DashboardView: View {
     @Environment(WeightStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onAdd: () -> Void
-
-    @Namespace private var fabNamespace
-    @State private var fabOpen = false
+    @State private var showCalendar = false
+    @State private var showGoal = false
+    @State private var showDetails = false
 
     private var stats: WeightStats { store.stats }
     private var unit: WeightUnit { store.unit }
+    private var latestEntry: WeightEntry? { store.entries.last { $0.date <= Date() } }
+    private var previewScrollAnchor: UnitPoint {
+        #if DEBUG && targetEnvironment(simulator)
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-preview-bottom") { return .bottom }
+        if arguments.contains("--ui-preview-middle") { return .center }
+        #endif
+        return .top
+    }
+    private var recordingDays: [(date: Date, recorded: Bool)] {
+        let calendar = Calendar.current
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        let recorded = Set(store.entries.filter { $0.date <= now }.map { calendar.startOfDay(for: $0.date) })
+        return (0..<7).reversed().compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            return (day, recorded.contains(day))
+        }
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                AuroraBackground()
-
+                AppDesign.Palette.canvas.ignoresSafeArea()
                 ScrollView {
-                    VStack(spacing: 18) {
+                    VStack(spacing: AppDesign.Space.lg) {
                         header
-
+                        recordingStrip
                         if store.isEmpty {
-                            EmptyStateView(
-                                symbol: "scalemass",
-                                title: "还没有记录",
-                                message: "点右下角的按钮，或直接用下方快捷条记下第一笔体重。",
-                                actionTitle: "记第一笔",
-                                action: onAdd
-                            )
-                            .padding(.top, 40)
+                            AppSurface(.weight, padding: AppDesign.Space.page) {
+                                VStack(alignment: .leading, spacing: AppDesign.Space.lg) {
+                                    Label("从今天开始记录", systemImage: "scalemass").font(.title3.weight(.semibold))
+                                    Text("记下第一笔体重，慢慢看见自己的变化。")
+                                        .font(.subheadline).foregroundStyle(AppDesign.Palette.secondaryText)
+                                    Button(action: onAdd) { Label("记体重", systemImage: "plus") }
+                                        .buttonStyle(AppPrimaryButtonStyle())
+                                }
+                            }
                         } else {
-                            HeroCard(
-                                stats: stats,
-                                goal: store.goal,
-                                baselineKg: store.baselineKg,
-                                unit: unit,
-                                projectedDate: stats.projectedGoalDate(goal: store.goal, baselineKg: store.baselineKg)
-                            )
-
-                            statGrid
-                            trendCard
-                            recentCard
+                            HeroCard(stats: stats, goal: store.goal, baselineKg: store.baselineKg, unit: unit,
+                                     projectedDate: stats.projectedGoalDate(goal: store.goal, baselineKg: store.baselineKg),
+                                     latestEntry: latestEntry, recentEntries: store.recentEntries(days: 7),
+                                     dailyPolicy: store.settings.dailyWeightPolicy, onAdd: onAdd)
                         }
                         WaterCard()
+                        if !store.isEmpty { recentCard; trendCard; detailsCard }
                     }
-                    .padding(.horizontal, Theme.pagePadding)
-                    .padding(.top, 8)
-                    .padding(.bottom, 140)
+                    .frame(maxWidth: AppDesign.Space.maximumContentWidth)
+                    .padding(.horizontal, AppDesign.Space.page)
+                    .padding(.top, AppDesign.Space.sm)
+                    .padding(.bottom, AppDesign.Space.section)
+                    .frame(maxWidth: .infinity)
                 }
+                .foregroundStyle(AppDesign.Palette.primaryText)
+                .tint(AppDesign.Palette.action)
                 .scrollIndicators(.hidden)
+                .defaultScrollAnchor(previewScrollAnchor, for: .initialOffset)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .overlay(alignment: .bottomTrailing) {
-                fabCluster
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 24)
-            }
+            .sheet(isPresented: $showCalendar) { RecordingCalendarView() }
+            .sheet(isPresented: $showGoal) { GoalEditorView() }
         }
     }
-
-    // MARK: - 头部
 
     private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(greeting)
-                    .font(.title2.weight(.bold))
-                Text(Date().formatted(.dateTime.month().day().weekday(.wide)))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: AppDesign.Space.sm) {
+            VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
+                Text(Date(), format: .dateTime.month().day().weekday(.wide))
+                    .font(.subheadline).foregroundStyle(AppDesign.Palette.secondaryText)
+                Text("今天").font(AppDesign.TypeScale.pageTitle).accessibilityAddTraits(.isHeader)
             }
-            Spacer()
-            GlassIconButton(systemImage: "target", tint: Theme.aqua) {
-                // 跳到目标编辑
-                NotificationCenter.default.post(name: .glassScaleEditGoal, object: nil)
+            Spacer(minLength: AppDesign.Space.xs)
+            Button { showCalendar = true } label: { Image(systemName: "calendar").font(.system(size: AppDesign.Control.iconSize, weight: .medium)) }
+                .buttonStyle(AppSecondaryButtonStyle(iconOnly: true))
+                .accessibilityLabel("打开日历与补录")
+            Menu {
+                Button("设置体重目标", systemImage: "target") { showGoal = true }
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: AppDesign.Control.iconSize, weight: .medium))
+                    .frame(width: AppDesign.Control.minimumTarget, height: AppDesign.Control.minimumTarget)
+                    .foregroundStyle(AppDesign.Palette.action)
+                    .background(AppDesign.Palette.surface, in: .circle)
             }
+            .accessibilityLabel("更多设置")
         }
     }
 
-    private var greeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<11: return "早上好"
-        case 11..<14: return "中午好"
-        case 14..<18: return "下午好"
-        default: return "晚上好"
-        }
-    }
-
-    // MARK: - 统计磁贴
-
-    private var statGrid: some View {
-        GlassEffectContainer(spacing: 12) {
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                StatTile(
-                    title: "近 7 日均",
-                    value: Fmt.weight(stats.average7Kg, unit),
-                    unitText: unit.symbol,
-                    symbol: "chart.line.uptrend.xyaxis",
-                    caption: "抹掉每日水分波动"
-                )
-
-                StatTile(
-                    title: "本周变化",
-                    value: Fmt.signedWeight(stats.delta7dKg, unit),
-                    unitText: unit.symbol,
-                    symbol: "calendar.badge.minus",
-                    valueColor: Theme.deltaColor(stats.delta7dKg),
-                    caption: rateCaption
-                )
-
-                StatTile(
-                    title: "距目标",
-                    value: Fmt.weight(stats.remainingKg(to: store.goal), unit),
-                    unitText: unit.symbol,
-                    symbol: "flag.checkered",
-                    caption: store.goal == nil ? "去设置一个目标" : nil
-                )
-
-                StatTile(
-                    title: "BMI",
-                    value: Fmt.bmi(stats.bmi),
-                    symbol: "figure",
-                    valueColor: bmiColor,
-                    caption: stats.bmi.map { store.profile.bmiCategory($0).title }
-                )
-            }
-        }
-    }
-
-    private var rateCaption: String? {
-        guard let rate = stats.weeklyRateKg, abs(rate) > 0.02 else { return nil }
-        let v = Fmt.number(abs(unit.value(forKg: rate)), decimals: 1)
-        return "\(rate < 0 ? "↓" : "↑") 每周 \(v) \(unit.symbol)"
-    }
-
-    private var bmiColor: Color {
-        guard let bmi = stats.bmi else { return .primary }
-        switch bmi {
-        case ..<18.5: return Theme.aqua
-        case ..<24: return Theme.mint
-        case ..<28: return Theme.violet
-        default: return Theme.coral
-        }
-    }
-
-    // MARK: - 趋势卡
-
-    private var trendCard: some View {
-        GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionTitle(
-                    text: "近 30 天",
-                    symbol: "chart.xyaxis.line",
-                    trailing: "虚线为 7 日均线"
-                )
-                if store.recentEntries(days: 30).count >= 2 {
-                    WeightChartView(
-                        entries: store.recentEntries(days: 30),
-                        goal: store.goal,
-                        unit: unit,
-                        showsAverage: true,
-                        height: 190
-                    )
-                } else {
-                    Text("再记一天就能看到趋势曲线")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 120)
-                }
-            }
-        }
-    }
-
-    // MARK: - 最近记录
-
-    private var recentCard: some View {
-        GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
-            VStack(alignment: .leading, spacing: 12) {
-                SectionTitle(text: "最近记录", symbol: "clock.arrow.circlepath", trailing: "连续 \(stats.streakDays) 天")
-
-                if store.entries.isEmpty {
-                    Text("暂无").font(.subheadline).foregroundStyle(.secondary)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(store.entries.suffix(3).reversed())) { entry in
-                            EntryRow(entry: entry, unit: unit)
-                            if entry.id != store.entries.suffix(3).first?.id {
-                                Rectangle()
-                                    .fill(.white.opacity(0.08))
-                                    .frame(height: 1)
-                                    .padding(.leading, 34)
+    @ViewBuilder private var recordingStrip: some View {
+        let days = recordingDays
+        if dynamicTypeSize.isAccessibilitySize {
+            Label("近 7 天，\(days.filter { $0.recorded }.count) 天有体重记录", systemImage: "checkmark.circle")
+                .font(.subheadline).foregroundStyle(AppDesign.Palette.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(spacing: AppDesign.Space.sm) {
+                ForEach(days.indices, id: \.self) { index in
+                    let day = days[index]
+                    let isToday = Calendar.current.isDateInToday(day.date)
+                    VStack(spacing: AppDesign.Space.xs) {
+                        Text(isToday ? "今天" : day.date.formatted(.dateTime.weekday(.narrow)))
+                            .font(.caption2).foregroundStyle(AppDesign.Palette.secondaryText)
+                        ZStack {
+                            Circle().fill(isToday ? AppDesign.Palette.action : AppDesign.Palette.surface)
+                            if day.recorded {
+                                Image(systemName: "checkmark").font(.caption.weight(.bold))
+                            } else {
+                                Text("\(Calendar.current.component(.day, from: day.date))")
+                                    .font(.caption.weight(.medium)).monospacedDigit()
                             }
                         }
+                        .foregroundStyle(isToday ? AppDesign.Palette.onAction : day.recorded ? AppDesign.Palette.success : AppDesign.Palette.secondaryText)
+                        .frame(width: 30, height: 30)
                     }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(day.date.formatted(date: .complete, time: .omitted))，\(day.recorded ? "已有" : "尚无")体重记录")
                 }
             }
         }
     }
 
-    // MARK: - 浮动操作按钮（可展开，玻璃会互相形变）
-
-    private var fabCluster: some View {
-        GlassEffectContainer(spacing: 16) {
-            VStack(spacing: 12) {
-                if fabOpen {
-                    fabAction("square.and.pencil", "手动记录", Theme.aqua) {
-                        fabOpen = false
-                        onAdd()
-                    }
-                    .glassEffectID("manual", in: fabNamespace)
+    private var trendCard: some View {
+        AppSurface {
+            VStack(alignment: .leading, spacing: AppDesign.Space.md) {
+                Text("近 30 天趋势").font(AppDesign.TypeScale.section).accessibilityAddTraits(.isHeader)
+                if StatsEngine.dailyEntries(store.recentEntries(days: 30), policy: store.settings.dailyWeightPolicy).count >= 2 {
+                    WeightChartView(entries: store.recentEntries(days: 30), goal: store.goal, unit: unit,
+                                    showsAverage: true, height: 180, usesContentPalette: true)
+                    Text("实线为体重，长虚线为 7 日均值，短虚线为目标。")
+                        .font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+                } else {
+                    Text("再记录一天，就能看到趋势曲线").font(.subheadline)
+                        .foregroundStyle(AppDesign.Palette.secondaryText)
+                        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
                 }
-
-                Button {
-                    withAnimation(.bouncy(duration: 0.35)) { fabOpen.toggle() }
-                } label: {
-                    Image(systemName: fabOpen ? "xmark" : "plus")
-                        .font(.system(size: 24, weight: .bold))
-                        .frame(width: 58, height: 58)
-                }
-                .buttonStyle(.glassProminent)
-                .buttonBorderShape(.circle)
-                .clipShape(.circle)
-                .tint(Theme.aqua)
-                .glassEffectID("toggle", in: fabNamespace)
             }
         }
     }
 
-    private func fabAction(_ symbol: String, _ label: String, _ tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(label, systemImage: symbol)
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 11)
+    private var recentCard: some View {
+        AppSurface {
+            VStack(alignment: .leading, spacing: AppDesign.Space.md) {
+                ViewThatFits(in: .horizontal) {
+                    HStack { Text("最近记录").font(.headline); Spacer(); streakText }
+                    VStack(alignment: .leading, spacing: AppDesign.Space.xs) { Text("最近记录").font(.headline); streakText }
+                }
+                ForEach(Array(store.entries.suffix(3).reversed())) { entry in
+                    recentRow(entry)
+                    if entry.id != store.entries.suffix(3).first?.id { Divider() }
+                }
+            }
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.capsule)
-        .tint(tint)
+    }
+
+    private var streakText: some View {
+        Text("连续 \(stats.streakDays) 天").font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+    }
+
+    private func recentRow(_ entry: WeightEntry) -> some View {
+        HStack(spacing: AppDesign.Space.md) {
+            Image(systemName: entry.source.symbol).foregroundStyle(AppDesign.Palette.secondaryText)
+                .frame(width: 22).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
+                Text("\(Fmt.weight(entry.weightKg, unit)) \(unit.symbol)").font(.headline).monospacedDigit()
+                Text(entry.date, format: .dateTime.month().day().hour().minute())
+                    .font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+                if let bodyFat = entry.bodyFatPercent {
+                    Text("体脂 \(Fmt.number(bodyFat, decimals: 1))%").font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var detailsCard: some View {
+        AppSurface {
+            DisclosureGroup(isExpanded: $showDetails) {
+                VStack(alignment: .leading, spacing: AppDesign.Space.md) {
+                    detailRow("BMI", value: Fmt.bmi(stats.bmi))
+                    if let bmi = stats.bmi { Text(store.profile.bmiCategory(bmi).title).font(.caption).foregroundStyle(AppDesign.Palette.secondaryText) }
+                    detailRow("起始体重", value: "\(Fmt.weight(store.baselineKg, unit)) \(unit.symbol)")
+                    if let goal = store.goal {
+                        detailRow("目标体重", value: "\(Fmt.weight(goal.targetWeightKg, unit)) \(unit.symbol)")
+                        detailRow("目标日期", value: goal.targetDate.formatted(date: .abbreviated, time: .omitted))
+                        if let date = stats.projectedGoalDate(goal: goal, baselineKg: store.baselineKg) {
+                            detailRow("按当前速度预计达成", value: date.formatted(date: .abbreviated, time: .omitted))
+                        }
+                    }
+                    if let rate = stats.weeklyRateKg { detailRow("每周变化速度", value: "\(Fmt.signedWeight(rate, unit)) \(unit.symbol)") }
+                    Button("设置体重目标", systemImage: "target") { showGoal = true }.buttonStyle(AppSecondaryButtonStyle())
+                }
+                .padding(.top, AppDesign.Space.md)
+            } label: {
+                Text("目标与身体指标").frame(minHeight: AppDesign.Control.minimumTarget)
+            }
+            .font(.subheadline.weight(.medium)).tint(AppDesign.Palette.action)
+        }
+    }
+
+    @ViewBuilder private func detailRow(_ title: String, value: String) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
+                Text(title).foregroundStyle(AppDesign.Palette.secondaryText); Text(value)
+            }
+        } else {
+            HStack { Text(title).foregroundStyle(AppDesign.Palette.secondaryText); Spacer(); Text(value).multilineTextAlignment(.trailing) }
+        }
     }
 }
-
-// MARK: - 通知名
 
 extension Notification.Name {
     static let glassScaleEditGoal = Notification.Name("glassScale.editGoal")

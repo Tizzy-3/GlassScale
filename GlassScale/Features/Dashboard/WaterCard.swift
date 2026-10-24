@@ -1,180 +1,163 @@
 import SwiftUI
 
-/// 首页喝水卡片：今日进度 + 一键记录 + 近 7 天小统计。
+/// Existing water actions with success-only visual feedback; persistence stays in WeightStore.
 struct WaterCard: View {
     @Environment(WeightStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title) private var readingSize = AppDesign.TypeScale.waterSize
     @State private var showGoalSheet = false
     @State private var showCustomSheet = false
     @State private var showHistory = false
+    @State private var showCups = false
+    @State private var isAcknowledging = false
+    @State private var acknowledgment = 0
+    @State private var lastCupMl = 0
 
     private var drunk: Int { store.todayWaterMl }
     private var goal: Int { store.settings.waterGoalMl }
-    private var progress: Double {
-        guard goal > 0 else { return 0 }
-        return min(1, Double(drunk) / Double(goal))
-    }
+    private var progress: Double { goal > 0 ? min(1, Double(drunk) / Double(goal)) : 0 }
 
     var body: some View {
-        GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
-            VStack(alignment: .leading, spacing: 14) {
-                header
-                numberRow
+        AppSurface(.hydration) {
+            VStack(alignment: .leading, spacing: AppDesign.Space.md) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    summary
+                    WaterCupView(progress: progress, isAcknowledging: isAcknowledging).frame(width: 80, height: 88)
+                } else {
+                    HStack(spacing: AppDesign.Space.md) {
+                        summary
+                        WaterCupView(progress: progress, isAcknowledging: isAcknowledging).frame(width: 80, height: 88)
+                    }
+                }
                 progressBar
                 quickButtons
-                weekStrip
             }
+        }
+        .animation(reduceMotion ? nil : AppDesign.Motion.progress, value: drunk)
+        .sensoryFeedback(.selection, trigger: acknowledgment)
+        .task(id: acknowledgment) {
+            guard acknowledgment > 0 else { return }
+            do { try await Task.sleep(for: .seconds(1.6)) } catch { return }
+            withAnimation(reduceMotion ? nil : AppDesign.Motion.state) { isAcknowledging = false }
         }
         .sheet(isPresented: $showGoalSheet) { WaterGoalSheet() }
         .sheet(isPresented: $showCustomSheet) { WaterEntryEditorView() }
         .sheet(isPresented: $showHistory) { WaterHistoryView() }
+        .sheet(isPresented: $showCups) { WaterCupSettingsView() }
     }
 
-    // MARK: - 标题行
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "drop.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.aqua)
-            Text("今日喝水")
-                .font(.headline)
-            Spacer(minLength: 8)
-            if !store.todayWaterEntries.isEmpty {
-                Button("撤销") { store.undoLastWater() }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
+            HStack(spacing: AppDesign.Space.xs) {
+                Button { showHistory = true } label: {
+                    HStack(spacing: 6) {
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Image(systemName: "drop.fill").accessibilityHidden(true)
+                        }
+                        Text("今日喝水")
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Image(systemName: "chevron.right").font(.caption2).accessibilityHidden(true)
+                        }
+                    }
+                    .font(.headline).foregroundStyle(AppDesign.Palette.primaryText)
+                    .frame(minHeight: AppDesign.Control.minimumTarget)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("今日喝水明细与补录")
+                Spacer(minLength: 0)
+                Menu {
+                    Button("设置喝水目标", systemImage: "target") { showGoalSheet = true }
+                    Button("常用杯量", systemImage: "cup.and.saucer") { showCups = true }
+                    if !store.todayWaterEntries.isEmpty {
+                        Button("撤销今日最后一笔", systemImage: "arrow.uturn.backward") { store.undoLastWater() }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis").font(.system(size: AppDesign.Control.iconSize, weight: .semibold))
+                        .frame(width: AppDesign.Control.minimumTarget, height: AppDesign.Control.minimumTarget)
+                        .foregroundStyle(AppDesign.Palette.action).contentShape(.rect)
+                }
+                .accessibilityLabel("喝水设置与撤销")
             }
-            Button { showGoalSheet = true } label: {
-                Image(systemName: "gearshape")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .accessibilityLabel("设置喝水目标")
-        }
-    }
-
-    // MARK: - 数字行
-
-    private var numberRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("\(drunk)")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .contentTransition(.numericText())
-            Text("/ \(goal) ml")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Spacer()
-            if progress >= 1 {
-                Label("已达标", systemImage: "checkmark.circle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.mint)
+            reading
+            if isAcknowledging {
+                Label("已记录 \(lastCupMl) ml", systemImage: "checkmark.circle.fill")
+                    .font(.caption).foregroundStyle(AppDesign.Palette.success)
             } else {
-                Text("\(Int(progress * 100))%")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
+                Text(progress >= 1 ? "今日已达标" : "已完成 \(Int(progress * 100))%")
+                    .font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private var reading: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
+                amount.font(.largeTitle.weight(.semibold))
+                goalText
+            }
+            .accessibilityElement(children: .ignore).accessibilityLabel("今日喝水 \(drunk) 毫升，目标 \(goal) 毫升")
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) { amount.font(.system(size: readingSize, weight: .semibold, design: .rounded)); goalText }
+                VStack(alignment: .leading, spacing: 4) { amount.font(.system(size: readingSize, weight: .semibold, design: .rounded)); goalText }
+            }
+            .accessibilityElement(children: .ignore).accessibilityLabel("今日喝水 \(drunk) 毫升，目标 \(goal) 毫升")
         }
     }
 
-    // MARK: - 进度条
+    private var amount: some View {
+        Text(drunk.formatted())
+            .monospacedDigit()
+            .contentTransition(reduceMotion ? .identity : .numericText())
+    }
+
+    private var goalText: some View {
+        Text("/ \(goal.formatted()) ml").font(.subheadline).foregroundStyle(AppDesign.Palette.secondaryText)
+    }
 
     private var progressBar: some View {
         GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(.secondary.opacity(0.15))
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.aqua, Theme.mint],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: max(12, proxy.size.width * progress))
-                    .animation(.snappy, value: progress)
-            }
+            Capsule().fill(AppDesign.Palette.waterTrack)
+                .overlay(alignment: .leading) {
+                    Capsule().fill(LinearGradient(colors: [AppDesign.Palette.action, AppDesign.Palette.success],
+                                                   startPoint: .leading, endPoint: .trailing))
+                        .frame(width: proxy.size.width * progress)
+                }
         }
-        .frame(height: 10)
+        .frame(height: 7)
+        .accessibilityLabel("今日喝水完成百分之\(Int(progress * 100))")
     }
-
-    // MARK: - 快捷记录
 
     private var quickButtons: some View {
-        VStack(spacing: 10) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 10)], spacing: 10) {
-                ForEach(store.settings.waterCupSizes, id: \.self) { ml in
-                    quickButton(title: "+\(ml) ml", ml: ml)
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 180 : 84),
+                                    spacing: AppDesign.Space.sm)], spacing: AppDesign.Space.sm) {
+            ForEach(store.settings.waterCupSizes, id: \.self) { ml in
+                Button { recordWater(ml) } label: {
+                    Text("+\(ml) ml").frame(maxWidth: .infinity)
                 }
+                .buttonStyle(AppSecondaryButtonStyle())
+                .accessibilityLabel("记录喝水 \(ml) 毫升")
             }
-            HStack(spacing: 10) {
-                Button { showCustomSheet = true } label: {
-                    Label("自定义", systemImage: "plus")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.glass)
-                Button { showHistory = true } label: {
-                    Label("明细与补录", systemImage: "list.bullet")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.glass)
+            Button { showCustomSheet = true } label: {
+                Text("自定义").frame(maxWidth: .infinity)
             }
+            .buttonStyle(AppSecondaryButtonStyle())
+            .accessibilityLabel("自定义喝水量和时间")
         }
     }
 
-    private func quickButton(title: String, ml: Int) -> some View {
-        Button { store.logWater(ml: ml) } label: {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-        }
-        .buttonStyle(.glass)
-    }
-
-    // MARK: - 近 7 天
-
-    private var weekStrip: some View {
-        let days = store.waterMlByDay(lastDays: 7)
-        let goal = max(1, store.settings.waterGoalMl)
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("近 7 天")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack(alignment: .bottom, spacing: 6) {
-                ForEach(days.indices, id: \.self) { i in
-                    let item = days[i]
-                    let isToday = i == days.count - 1
-                    VStack(spacing: 4) {
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(
-                                item.ml > 0
-                                    ? (isToday ? Theme.aqua : Theme.aqua.opacity(0.55))
-                                    : .secondary.opacity(0.18)
-                            )
-                            .frame(height: max(4, CGFloat(min(1.0, Double(item.ml) / Double(goal))) * 44))
-                        Text(weekdayLabel(for: item.date, isToday: isToday))
-                            .font(.caption2)
-                            .foregroundStyle(isToday ? Theme.aqua : .secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-        }
-    }
-
-    private func weekdayLabel(for date: Date, isToday: Bool) -> String {
-        if isToday { return "今" }
-        let w = Calendar.current.component(.weekday, from: date) // 1 = 周日
-        return ["日", "一", "二", "三", "四", "五", "六"][w - 1]
+    private func recordWater(_ ml: Int) {
+        let before = store.todayWaterMl
+        withAnimation(reduceMotion ? nil : AppDesign.Motion.progress) { store.logWater(ml: ml) }
+        guard store.todayWaterMl == before + ml else { return }
+        lastCupMl = ml
+        isAcknowledging = true
+        acknowledgment += 1
     }
 }
-
 // MARK: - 目标设置
 
 /// 每日喝水目标设置。
@@ -189,7 +172,7 @@ struct WaterGoalSheet: View {
                 AuroraBackground()
 
                 VStack(spacing: 18) {
-                    GlassCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
+                    ContentCard(cornerRadius: Theme.cardCorner, contentPadding: 18) {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("每日喝水目标")
                                 .font(.headline)

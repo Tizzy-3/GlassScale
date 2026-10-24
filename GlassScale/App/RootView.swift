@@ -16,6 +16,14 @@ struct RootView: View {
     @State private var showRecoveryImport = false
     private let clock = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
+    init() {
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--ui-preview-records") {
+            _selection = State(initialValue: .history)
+        }
+        #endif
+    }
+
     var body: some View {
         ZStack {
             AuroraBackground()
@@ -98,11 +106,11 @@ struct RootView: View {
 
     private var tabs: some View {
         TabView(selection: $selection) {
-            Tab("首页", systemImage: "scalemass", value: AppTab.dashboard) {
+            Tab("首页", systemImage: "house", value: AppTab.dashboard) {
                 DashboardView(onAdd: { pendingQuickAdd = true })
             }
 
-            Tab("记录", systemImage: "list.bullet.rectangle", value: AppTab.history) {
+            Tab("记录", systemImage: "calendar", value: AppTab.history) {
                 HistoryView()
             }
 
@@ -114,6 +122,7 @@ struct RootView: View {
                 SettingsView()
             }
         }
+        // 保留 iOS 26 原生悬浮 Liquid Glass Tab Bar；不叠加自绘底栏或白色底板。
         .tabBarMinimizeBehavior(.onScrollDown)
     }
 }

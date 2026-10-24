@@ -15,6 +15,8 @@ struct WeightChartView: View {
     let unit: WeightUnit
     var showsAverage: Bool = true
     var height: CGFloat = 230
+    /// Homepage-only palette; existing callers keep their current appearance.
+    var usesContentPalette: Bool = false
 
     @State private var selectedDate: Date?
 
@@ -81,7 +83,8 @@ struct WeightChartView: View {
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Theme.aqua.opacity(0.42), Theme.aqua.opacity(0.02)],
+                        colors: [(usesContentPalette ? AppDesign.Palette.action : Theme.aqua).opacity(usesContentPalette ? 0.20 : 0.42),
+                                 (usesContentPalette ? AppDesign.Palette.action : Theme.aqua).opacity(0.02)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -90,9 +93,12 @@ struct WeightChartView: View {
 
                 LineMark(
                     x: .value("日期", p.date, unit: .day),
-                    y: .value("体重", unit.value(forKg: p.kg))
+                    y: .value("体重", unit.value(forKg: p.kg)),
+                    series: .value("序列", "体重")
                 )
-                .foregroundStyle(Theme.brandGradient)
+                .foregroundStyle(usesContentPalette
+                    ? LinearGradient(colors: [AppDesign.Palette.action, AppDesign.Palette.action], startPoint: .top, endPoint: .bottom)
+                    : Theme.brandGradient)
                 .lineStyle(StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.catmullRom)
             }
@@ -101,24 +107,31 @@ struct WeightChartView: View {
                 ForEach(averagePoints) { p in
                     LineMark(
                         x: .value("日期", p.date, unit: .day),
-                        y: .value("趋势", unit.value(forKg: p.kg))
+                        y: .value("趋势", unit.value(forKg: p.kg)),
+                        series: .value("序列", usesContentPalette ? "7 日均值" : "体重")
                     )
-                    .foregroundStyle(Theme.mint.opacity(0.85))
+                    .foregroundStyle(usesContentPalette ? AppDesign.Palette.success : Theme.mint.opacity(0.85))
                     .lineStyle(StrokeStyle(lineWidth: 1.8, dash: [6, 5]))
                 }
             }
 
             if let goal {
                 RuleMark(y: .value("目标", unit.value(forKg: goal.targetWeightKg)))
-                    .foregroundStyle(.secondary.opacity(0.5))
+                    .foregroundStyle(usesContentPalette ? AppDesign.Palette.secondaryText : Color.secondary.opacity(0.5))
                     .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
                     .annotation(position: .top, alignment: .leading, spacing: 2) {
                         Text("目标 \(Fmt.weight(goal.targetWeightKg, unit))")
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.8))
+                            .foregroundStyle(usesContentPalette ? AppDesign.Palette.primaryText : Color.white.opacity(0.8))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(.ultraThinMaterial, in: .capsule)
+                            .background {
+                                if usesContentPalette {
+                                    Capsule().fill(AppDesign.Palette.surface)
+                                } else {
+                                    Capsule().fill(.ultraThinMaterial)
+                                }
+                            }
                     }
             }
 
@@ -131,7 +144,7 @@ struct WeightChartView: View {
                     x: .value("日期", selectedPoint.date, unit: .day),
                     y: .value("体重", unit.value(forKg: selectedPoint.kg))
                 )
-                .foregroundStyle(Theme.aqua)
+                .foregroundStyle(usesContentPalette ? AppDesign.Palette.action : Theme.aqua)
                 .symbolSize(70)
                 .annotation(position: .top, spacing: 8) {
                     readout(selectedPoint)
@@ -145,7 +158,7 @@ struct WeightChartView: View {
                 AxisTick().foregroundStyle(.secondary.opacity(0.35))
                 AxisValueLabel()
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(usesContentPalette ? AppDesign.Palette.secondaryText : Color.secondary)
             }
         }
         .chartYAxis {
@@ -155,7 +168,7 @@ struct WeightChartView: View {
                     if let v = value.as(Double.self) {
                         Text(Fmt.number(v, decimals: 0))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(usesContentPalette ? AppDesign.Palette.secondaryText : Color.secondary)
                     }
                 }
             }
