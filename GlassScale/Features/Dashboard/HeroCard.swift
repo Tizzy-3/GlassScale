@@ -1,184 +1,142 @@
-import Charts
 import SwiftUI
 
+/// 目标进度环。
 struct GoalRing: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 0…1
     let progress: Double
-    var lineWidth: CGFloat = 5
+    var lineWidth: CGFloat = 16
     var trackOpacity: Double = 0.14
 
     var body: some View {
         ZStack {
-            Circle().stroke(AppDesign.Palette.action.opacity(trackOpacity), lineWidth: lineWidth)
-            Circle().trim(from: 0, to: max(0, min(1, progress)))
-                .stroke(AppDesign.Palette.success, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+            Circle()
+                .stroke(.white.opacity(trackOpacity), lineWidth: lineWidth)
+
+            Circle()
+                .trim(from: 0, to: max(0.0001, min(1, progress)))
+                .stroke(
+                    AngularGradient(
+                        colors: [Theme.aqua, Theme.mint, Theme.violet, Theme.aqua],
+                        center: .center,
+                        startAngle: .degrees(0),
+                        endAngle: .degrees(360)
+                    ),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                )
                 .rotationEffect(.degrees(-90))
-                .animation(reduceMotion ? nil : AppDesign.Motion.progress, value: progress)
+                .shadow(color: Theme.mint.opacity(0.45), radius: 10)
+                .animation(.spring(response: 0.75, dampingFraction: 0.82), value: progress)
         }
     }
 }
 
+/// 首页顶部的大玻璃卡：当前体重 + 目标进度。
 struct HeroCard: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .largeTitle) private var readingSize = AppDesign.TypeScale.weightSize
     let stats: WeightStats
     let goal: WeightGoal?
     let baselineKg: Double?
     let unit: WeightUnit
     let projectedDate: Date?
-    var latestEntry: WeightEntry? = nil
-    var recentEntries: [WeightEntry] = []
-    var dailyPolicy: DailyWeightPolicy = .latest
-    var onAdd: () -> Void = {}
 
-    private var progress: Double { stats.progress(goal: goal, baselineKg: baselineKg) ?? 0 }
-    private var percent: Int { Int((progress * 100).rounded()) }
-    private var points: [WeightEntry] { StatsEngine.dailyEntries(recentEntries, policy: dailyPolicy) }
-    private var chartDomain: ClosedRange<Double> {
-        let values = points.map { unit.value(forKg: $0.weightKg) }
-        let lo = values.min() ?? 0
-        let hi = values.max() ?? 1
-        let padding = max(0.25, (hi - lo) * 0.3)
-        return (lo - padding)...(hi + padding)
+    private var progress: Double {
+        stats.progress(goal: goal, baselineKg: baselineKg) ?? 0
+    }
+
+    private var progressPercent: Int {
+        Int((progress * 100).rounded())
     }
 
     var body: some View {
-        AppSurface(.weight) {
-            VStack(alignment: .leading, spacing: AppDesign.Space.md) {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: AppDesign.Space.lg) { reading; if goal != nil { goalProgress } }
-                } else {
-                    HStack(alignment: .center, spacing: AppDesign.Space.md) {
-                        reading
-                        Spacer(minLength: 0)
-                        if goal != nil { goalProgress }
+        GlassCard(cornerRadius: Theme.heroCorner, contentPadding: 22, tint: Theme.aqua.opacity(0.35)) {
+            VStack(spacing: 18) {
+                HStack(alignment: .center, spacing: 18) {
+                    ZStack {
+                        GoalRing(progress: progress)
+                            .frame(width: 108, height: 108)
+                        VStack(spacing: 0) {
+                            Text("\(progressPercent)")
+                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                                .contentTransition(.numericText())
+                            Text("%")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
-                sparkline
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: AppDesign.Space.md) { metricItems }
-                } else {
-                    HStack(alignment: .top, spacing: AppDesign.Space.md) { metricItems }
-                }
-                Button(action: onAdd) { Label("记体重", systemImage: "plus") }
-                    .buttonStyle(AppPrimaryButtonStyle())
-            }
-        }
-        .animation(reduceMotion ? nil : AppDesign.Motion.progress, value: stats.currentKg)
-    }
 
-    private var reading: some View {
-        VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
-            Text("当前体重").font(AppDesign.TypeScale.label).foregroundStyle(AppDesign.Palette.secondaryText)
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
-                        weightAmount.font(.largeTitle.weight(.semibold))
-                        weightUnit
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("当前体重")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(Fmt.weight(stats.currentKg, unit))
+                                .font(.system(size: 40, weight: .bold, design: .rounded))
+                                .contentTransition(.numericText())
+                            Text(unit.symbol)
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        deltaLine
                     }
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        weightAmount.font(.system(size: readingSize, weight: .semibold, design: .rounded))
-                            .lineLimit(1).minimumScaleFactor(0.75)
-                        weightUnit
-                    }
+                    Spacer(minLength: 0)
                 }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("当前体重 \(Fmt.weight(stats.currentKg, unit)) \(unit.symbol)")
-            if let latestEntry {
-                Text(latestEntry.date, format: .dateTime.month().day().hour().minute())
-                    .font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)
-                    .accessibilityLabel("最近称重时间，\(latestEntry.date.formatted(date: .abbreviated, time: .shortened))")
-            }
-        }
-    }
 
-    private var weightAmount: some View {
-        Text(Fmt.weight(stats.currentKg, unit)).monospacedDigit()
-            .contentTransition(reduceMotion ? .identity : .numericText())
-    }
-
-    private var weightUnit: some View {
-        Text(unit.symbol).font(.title3.weight(.medium)).foregroundStyle(AppDesign.Palette.secondaryText)
-    }
-
-    private var goalProgress: some View {
-        VStack(spacing: AppDesign.Space.sm) {
-            ZStack {
-                GoalRing(progress: progress)
-                    .frame(width: dynamicTypeSize.isAccessibilitySize ? 120 : 54,
-                           height: dynamicTypeSize.isAccessibilitySize ? 120 : 54)
-                Text("\(percent)%").font(.caption.weight(.semibold)).monospacedDigit()
-            }
-            Text("目标进度").font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)
-        }
-        .accessibilityElement(children: .ignore).accessibilityLabel("目标完成百分之\(percent)")
-    }
-
-    private var sparkline: some View {
-        VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
-            ViewThatFits(in: .horizontal) {
-                HStack { Text("近 7 天"); Spacer(); deltaText }
-                VStack(alignment: .leading, spacing: AppDesign.Space.xs) { Text("近 7 天"); deltaText }
-            }
-            .font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)
-            if points.count >= 2 {
-                Chart(points) { entry in
-                    AreaMark(x: .value("日期", entry.date), yStart: .value("基线", chartDomain.lowerBound), yEnd: .value("体重", unit.value(forKg: entry.weightKg)))
-                        .foregroundStyle(LinearGradient(colors: [AppDesign.Palette.action.opacity(0.14), AppDesign.Palette.action.opacity(0)], startPoint: .top, endPoint: .bottom))
-                        .interpolationMethod(.monotone)
-                    LineMark(x: .value("日期", entry.date), y: .value("体重", unit.value(forKg: entry.weightKg)))
-                        .foregroundStyle(AppDesign.Palette.action)
-                        .lineStyle(StrokeStyle(lineWidth: 2.3, lineCap: .round)).interpolationMethod(.monotone)
-                }
-                .chartYScale(domain: chartDomain).chartXAxis(.hidden).chartYAxis(.hidden).chartLegend(.hidden)
-                .frame(height: 36).accessibilityLabel("近 7 天体重趋势，\(points.count) 天有记录")
-            } else {
-                Text("再记录一天，就能看到趋势").font(AppDesign.TypeScale.metadata)
-                    .foregroundStyle(AppDesign.Palette.secondaryText).padding(.vertical, AppDesign.Space.sm)
-            }
-        }
-    }
-
-    @ViewBuilder private var deltaText: some View {
-        if stats.deltaLastKg != nil {
-            Text("较上次 \(Fmt.signedWeight(stats.deltaLastKg, unit)) \(unit.symbol)")
-                .foregroundStyle(AppDesign.Palette.delta(stats.deltaLastKg))
-        }
-    }
-
-    @ViewBuilder private var metricItems: some View {
-        metric("7 日均值", value: Fmt.weight(stats.average7Kg, unit))
-        metric("较 7 日前", value: Fmt.signedWeight(stats.delta7dKg, unit), tint: AppDesign.Palette.delta(stats.delta7dKg))
-        metric("距目标", value: Fmt.weight(stats.remainingKg(to: goal), unit))
-    }
-
-    private func metric(_ title: String, value: String, tint: Color = AppDesign.Palette.primaryText) -> some View {
-        VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
-            Text(title).font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    metricValue(value, tint: tint)
-                    metricUnit
-                }
-                VStack(alignment: .leading, spacing: AppDesign.Space.xs) {
-                    metricValue(value, tint: tint)
-                    metricUnit
+                if let goal {
+                    divider
+                    goalFooter(goal)
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
     }
 
-    private func metricValue(_ value: String, tint: Color) -> some View {
-        Text(value).font(AppDesign.TypeScale.metric).monospacedDigit().foregroundStyle(tint)
-            .contentTransition(reduceMotion ? .identity : .numericText())
+    private var divider: some View {
+        Rectangle()
+            .fill(.white.opacity(0.12))
+            .frame(height: 1)
     }
 
-    private var metricUnit: some View {
-        Text(unit.symbol).font(.caption).foregroundStyle(AppDesign.Palette.secondaryText)
+    private var deltaLine: some View {
+        HStack(spacing: 6) {
+            let delta = stats.deltaLastKg
+            Image(systemName: deltaIcon(delta))
+                .font(.caption2.weight(.bold))
+            Text("较上次 \(Fmt.signedWeight(delta, unit)) \(unit.symbol)")
+                .font(.caption.weight(.medium))
+        }
+        .foregroundStyle(Theme.deltaColor(stats.deltaLastKg))
+    }
+
+    private func deltaIcon(_ delta: Double?) -> String {
+        guard let delta, abs(delta) > 0.05 else { return "equal" }
+        return delta > 0 ? "arrow.up.right" : "arrow.down.right"
+    }
+
+    @ViewBuilder
+    private func goalFooter(_ goal: WeightGoal) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                GlassChip(
+                    text: "目标 \(Fmt.weight(goal.targetWeightKg, unit)) \(unit.symbol)",
+                    symbol: "target"
+                )
+                if let remaining = stats.remainingKg(to: goal) {
+                    GlassChip(
+                        text: "还差 \(Fmt.weight(remaining, unit)) \(unit.symbol)",
+                        symbol: "ruler"
+                    )
+                }
+                Spacer(minLength: 0)
+            }
+
+            if let projectedDate {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.caption2)
+                    Text("按当前速度，预计 \(projectedDate.formatted(.dateTime.month(.abbreviated).day())) 达成")
+                        .font(.caption)
+                }
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 }
