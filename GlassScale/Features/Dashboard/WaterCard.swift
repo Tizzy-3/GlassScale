@@ -52,9 +52,13 @@ struct WaterCard: View {
             HStack(spacing: AppDesign.Space.xs) {
                 Button { showHistory = true } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "drop.fill").accessibilityHidden(true)
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Image(systemName: "drop.fill").accessibilityHidden(true)
+                        }
                         Text("今日喝水")
-                        Image(systemName: "chevron.right").font(.caption2).accessibilityHidden(true)
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Image(systemName: "chevron.right").font(.caption2).accessibilityHidden(true)
+                        }
                     }
                     .font(.headline).foregroundStyle(AppDesign.Palette.primaryText)
                     .frame(minHeight: AppDesign.Control.minimumTarget)

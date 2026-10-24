@@ -47,10 +47,10 @@ capture() {
   fi
   # A cold simulator may still show its blank launch frame after launch returns.
   # Retry that frame instead of silently accepting it as a visual check.
-  for attempt in 1 2 3; do
-    sleep 4
+  for attempt in 1 2 3 4 5 6; do
+    sleep 8
     xcrun simctl io "$DEVICE_ID" screenshot "$OUT/$page-$appearance.png"
-    if [ "$(wc -c < "$OUT/$page-$appearance.png")" -gt 50000 ]; then
+    if [ "$(wc -c < "$OUT/$page-$appearance.png")" -gt 150000 ]; then
       return
     fi
   done
@@ -59,14 +59,11 @@ capture() {
 }
 
 capture home light
-capture records light
 capture home dark
-capture records dark
 capture home-bottom light --ui-preview-bottom
 capture home-bottom dark --ui-preview-bottom
-capture home-empty light --ui-preview-empty
-capture home-complete dark --ui-preview-water-complete
-capture home-sunset light --ui-preview-sunset
+# Empty/completed/alternate-theme states were reviewed in run49; this pass
+# concentrates on the corrected homepage, chart, accessibility and compact width.
 xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
 capture home-accessibility light
 capture home-water-accessibility light --ui-preview-middle

@@ -116,7 +116,8 @@ struct DashboardView: View {
                             if day.recorded {
                                 Image(systemName: "checkmark").font(.caption.weight(.bold))
                             } else {
-                                Text(day.date, format: .dateTime.day()).font(.caption.weight(.medium)).monospacedDigit()
+                                Text("\(Calendar.current.component(.day, from: day.date))")
+                                    .font(.caption.weight(.medium)).monospacedDigit()
                             }
                         }
                         .foregroundStyle(isToday ? AppDesign.Palette.onAction : day.recorded ? AppDesign.Palette.success : AppDesign.Palette.secondaryText)

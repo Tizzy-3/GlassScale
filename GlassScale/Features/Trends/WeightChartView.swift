@@ -93,7 +93,8 @@ struct WeightChartView: View {
 
                 LineMark(
                     x: .value("日期", p.date, unit: .day),
-                    y: .value("体重", unit.value(forKg: p.kg))
+                    y: .value("体重", unit.value(forKg: p.kg)),
+                    series: .value("序列", "体重")
                 )
                 .foregroundStyle(usesContentPalette
                     ? LinearGradient(colors: [AppDesign.Palette.action, AppDesign.Palette.action], startPoint: .top, endPoint: .bottom)
@@ -106,7 +107,8 @@ struct WeightChartView: View {
                 ForEach(averagePoints) { p in
                     LineMark(
                         x: .value("日期", p.date, unit: .day),
-                        y: .value("趋势", unit.value(forKg: p.kg))
+                        y: .value("趋势", unit.value(forKg: p.kg)),
+                        series: .value("序列", usesContentPalette ? "7 日均值" : "体重")
                     )
                     .foregroundStyle(usesContentPalette ? AppDesign.Palette.success : Theme.mint.opacity(0.85))
                     .lineStyle(StrokeStyle(lineWidth: 1.8, dash: [6, 5]))
@@ -123,7 +125,13 @@ struct WeightChartView: View {
                             .foregroundStyle(usesContentPalette ? AppDesign.Palette.primaryText : Color.white.opacity(0.8))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(.ultraThinMaterial, in: .capsule)
+                            .background {
+                                if usesContentPalette {
+                                    Capsule().fill(AppDesign.Palette.surface)
+                                } else {
+                                    Capsule().fill(.ultraThinMaterial)
+                                }
+                            }
                     }
             }
 
