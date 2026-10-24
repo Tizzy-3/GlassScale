@@ -31,8 +31,8 @@ Spacing: 4/8/12/16/20/24/32pt. Phone gutters 20pt, adaptive bounded content widt
 
 ## Components and states
 - `AppSurface`: content/weight/hydration roles; stable readable background, adaptive border/elevation.
-- Primary button: native Button semantics, 48pt minimum, contrasting action foreground; pressed state changes opacity/scale without relayout.
-- Secondary/icon buttons: 44pt minimum, explicit accessible name. Destructive operations retain their existing handlers and native semantics.
+- Primary button: native Button semantics, 48pt minimum, contrasting action foreground; pressed state changes fill brightness/scale without relayout or fading the label.
+- Secondary/icon buttons: 44pt minimum, explicit accessible name. Standalone header/menu symbols stay 20pt inside the target even at maximum text size. Destructive operations retain their existing handlers and native semantics.
 - SF Symbols for structural controls; the original rounded water-cup character is a decorative content illustration. Numbers and text carry the precise amount/status. Its fill derives from the existing water progress.
 - Empty: clear first-record action; single-day data: honest no-trend message; no goal: retain settings access and show an explanatory summary.
 - Existing storage error/recovery UI remains in RootView. No success animation is shown for a failed water save.
