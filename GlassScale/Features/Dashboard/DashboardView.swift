@@ -11,6 +11,14 @@ struct DashboardView: View {
     private var stats: WeightStats { store.stats }
     private var unit: WeightUnit { store.unit }
     private var latestEntry: WeightEntry? { store.entries.last { $0.date <= Date() } }
+    private var previewScrollAnchor: UnitPoint {
+        #if DEBUG && targetEnvironment(simulator)
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-preview-bottom") { return .bottom }
+        if arguments.contains("--ui-preview-middle") { return .center }
+        #endif
+        return .top
+    }
     private var recordingDays: [(date: Date, recorded: Bool)] {
         let calendar = Calendar.current
         let now = Date()
@@ -58,6 +66,7 @@ struct DashboardView: View {
                 .foregroundStyle(AppDesign.Palette.primaryText)
                 .tint(AppDesign.Palette.action)
                 .scrollIndicators(.hidden)
+                .defaultScrollAnchor(previewScrollAnchor, for: .initialOffset)
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showCalendar) { RecordingCalendarView() }
@@ -73,13 +82,13 @@ struct DashboardView: View {
                 Text("今天").font(AppDesign.TypeScale.pageTitle).accessibilityAddTraits(.isHeader)
             }
             Spacer(minLength: AppDesign.Space.xs)
-            Button { showCalendar = true } label: { Image(systemName: "calendar").font(.title3) }
+            Button { showCalendar = true } label: { Image(systemName: "calendar").font(.system(size: AppDesign.Control.iconSize, weight: .medium)) }
                 .buttonStyle(AppSecondaryButtonStyle(iconOnly: true))
                 .accessibilityLabel("打开日历与补录")
             Menu {
                 Button("设置体重目标", systemImage: "target") { showGoal = true }
             } label: {
-                Image(systemName: "ellipsis").font(.title3)
+                Image(systemName: "ellipsis").font(.system(size: AppDesign.Control.iconSize, weight: .medium))
                     .frame(width: AppDesign.Control.minimumTarget, height: AppDesign.Control.minimumTarget)
                     .foregroundStyle(AppDesign.Palette.action)
                     .background(AppDesign.Palette.surface, in: .circle)

@@ -32,6 +32,7 @@ enum AppDesign {
     enum Control {
         static let minimumTarget: CGFloat = 44
         static let primaryHeight: CGFloat = 48
+        static let iconSize: CGFloat = 20
     }
 
     enum Elevation {

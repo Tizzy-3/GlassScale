@@ -115,7 +115,7 @@ struct WeightChartView: View {
 
             if let goal {
                 RuleMark(y: .value("目标", unit.value(forKg: goal.targetWeightKg)))
-                    .foregroundStyle(.secondary.opacity(0.5))
+                    .foregroundStyle(usesContentPalette ? AppDesign.Palette.secondaryText : Color.secondary.opacity(0.5))
                     .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
                     .annotation(position: .top, alignment: .leading, spacing: 2) {
                         Text("目标 \(Fmt.weight(goal.targetWeightKg, unit))")
@@ -150,7 +150,7 @@ struct WeightChartView: View {
                 AxisTick().foregroundStyle(.secondary.opacity(0.35))
                 AxisValueLabel()
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(usesContentPalette ? AppDesign.Palette.secondaryText : Color.secondary)
             }
         }
         .chartYAxis {
@@ -160,7 +160,7 @@ struct WeightChartView: View {
                     if let v = value.as(Double.self) {
                         Text(Fmt.number(v, decimals: 0))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(usesContentPalette ? AppDesign.Palette.secondaryText : Color.secondary)
                     }
                 }
             }

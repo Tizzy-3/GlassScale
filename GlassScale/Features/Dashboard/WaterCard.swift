@@ -70,7 +70,7 @@ struct WaterCard: View {
                         Button("撤销今日最后一笔", systemImage: "arrow.uturn.backward") { store.undoLastWater() }
                     }
                 } label: {
-                    Image(systemName: "ellipsis").font(.headline)
+                    Image(systemName: "ellipsis").font(.system(size: AppDesign.Control.iconSize, weight: .semibold))
                         .frame(width: AppDesign.Control.minimumTarget, height: AppDesign.Control.minimumTarget)
                         .foregroundStyle(AppDesign.Palette.action).contentShape(.rect)
                 }

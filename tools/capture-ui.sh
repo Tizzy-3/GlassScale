@@ -45,19 +45,31 @@ capture() {
   else
     xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" --ui-preview "$@" -AppleLanguages '(zh-Hans)' -AppleLocale zh_CN
   fi
-  sleep 4
-  xcrun simctl io "$DEVICE_ID" screenshot "$OUT/$page-$appearance.png"
+  # A cold simulator may still show its blank launch frame after launch returns.
+  # Retry that frame instead of silently accepting it as a visual check.
+  for attempt in 1 2 3; do
+    sleep 4
+    xcrun simctl io "$DEVICE_ID" screenshot "$OUT/$page-$appearance.png"
+    if [ "$(wc -c < "$OUT/$page-$appearance.png")" -gt 50000 ]; then
+      return
+    fi
+  done
+  echo "Screenshot stayed on a blank launch frame: $page-$appearance" >&2
+  return 1
 }
 
 capture home light
 capture records light
 capture home dark
 capture records dark
+capture home-bottom light --ui-preview-bottom
+capture home-bottom dark --ui-preview-bottom
 capture home-empty light --ui-preview-empty
 capture home-complete dark --ui-preview-water-complete
 capture home-sunset light --ui-preview-sunset
 xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
 capture home-accessibility light
+capture home-water-accessibility light --ui-preview-middle
 xcrun simctl ui "$DEVICE_ID" content_size large
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 
@@ -77,6 +89,7 @@ xcrun simctl status_bar "$DEVICE_ID" override --time '9:41' --dataNetwork wifi -
 xcrun simctl install "$DEVICE_ID" "$APP"
 capture home-small light --ui-preview-pounds
 capture home-small dark --ui-preview-pounds
+capture home-small-bottom light --ui-preview-pounds --ui-preview-bottom
 xcrun simctl ui "$DEVICE_ID" content_size extra-extra-extra-large
 capture home-small-xxxlarge light --ui-preview-pounds
 xcrun simctl ui "$DEVICE_ID" content_size large
