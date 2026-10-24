@@ -18,6 +18,7 @@ Use `AppDesign.Palette`, not raw colors in page bodies. Colors adapt to light/da
 | Secondary text | #536879 | #B5C4D1 |
 | Action | #1677D2 | #6AC8FF |
 | On action | #FFFFFF | #102333 |
+| Text action on tinted surfaces | #1068B9 | #6AC8FF |
 | Success text | #147A62 | #63D7B7 |
 | Increasing-value text | #B84632 | #FFAA9B |
 

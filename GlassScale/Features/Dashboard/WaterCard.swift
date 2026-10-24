@@ -111,7 +111,7 @@ struct WaterCard: View {
                 Button { undoRecordedEntry(entry) } label: {
                     Text("撤销").font(.caption.weight(.semibold)).frame(minWidth: 44, minHeight: 44)
                 }
-                .buttonStyle(.plain).foregroundStyle(AppDesign.Palette.action)
+                .buttonStyle(.plain).foregroundStyle(AppDesign.Palette.textAction)
                 .disabled(!store.waterEntries.contains { $0.id == entry.id })
                 .accessibilityLabel("撤销刚才记录的 \(entry.ml) 毫升")
             } else {

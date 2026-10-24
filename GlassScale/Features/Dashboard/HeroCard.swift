@@ -158,7 +158,7 @@ struct HeroCard: View {
                     HStack(spacing: 3) { Text("目标进度"); Image(systemName: "chevron.right").accessibilityHidden(true) }
                         .font(.caption).frame(minHeight: AppDesign.Control.minimumTarget)
                 }
-                .buttonStyle(.plain).foregroundStyle(AppDesign.Palette.action)
+                .buttonStyle(.plain).foregroundStyle(AppDesign.Palette.textAction)
                 .accessibilityLabel("目标进度与体重详情")
             } else {
                 Text("目标进度").font(AppDesign.TypeScale.metadata).foregroundStyle(AppDesign.Palette.secondaryText)

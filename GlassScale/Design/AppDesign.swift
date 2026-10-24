@@ -72,6 +72,10 @@ enum AppDesign {
             }
         }
         static var onAction: Color { adaptive(0xFFFFFF, 0x102333) }
+        /// Text links on pale weight/hydration surfaces need more contrast than icons.
+        static var textAction: Color {
+            Theme.current == .ocean ? adaptive(0x1068B9, 0x6AC8FF) : action
+        }
         static var success: Color { adaptive(0x147A62, 0x63D7B7) }
         static var increase: Color { adaptive(0xB84632, 0xFFAA9B) }
         static var waterTrack: Color { adaptive(0xC5E6DC, 0x34585B) }
