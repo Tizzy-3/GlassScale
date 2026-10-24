@@ -14,8 +14,9 @@ let request = VNRecognizeTextRequest()
 request.recognitionLevel = .accurate
 request.recognitionLanguages = ["zh-Hans", "en-US"]
 request.usesLanguageCorrection = false
-// Exclude status-bar text and the home indicator from blank-frame detection.
-request.regionOfInterest = CGRect(x: 0, y: 0.08, width: 1, height: 0.84)
+// Require page-body text: a system notification over a blank launch frame must
+// not count as rendered app content. Vision coordinates start at bottom-left.
+request.regionOfInterest = CGRect(x: 0, y: 0.08, width: 1, height: 0.64)
 do {
     try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
     let regions = (request.results ?? []).filter {
